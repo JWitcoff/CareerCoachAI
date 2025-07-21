@@ -1,0 +1,17 @@
+John Smith
+Software Engineer
+
+Experience:
+- Senior Software Engineer at Tech Company (2020-2024)
+- Built scalable web applications using React, Node.js, and PostgreSQL
+- Led team of 5 developers on major product launches
+- Improved system performance by 40% through optimization
+
+Education:
+- Bachelor of Science in Computer Science, University of Technology (2016)
+
+Skills:
+- JavaScript, TypeScript, React, Node.js, Python
+- PostgreSQL, MongoDB, Redis
+- AWS, Docker, Kubernetes
+- Team leadership and project management

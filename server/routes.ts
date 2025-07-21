@@ -77,19 +77,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         text = req.file.buffer.toString('utf-8');
       } else if (req.file.mimetype === 'application/pdf') {
         try {
-          const pdfParse = require('pdf-parse');
-          const pdfData = await pdfParse(req.file.buffer);
-          text = pdfData.text;
+          const pdfParse = await import('pdf-parse');
+          const pdfData = await pdfParse.default(req.file.buffer);
+          text = pdfData.text.trim();
+          
+          if (!text || text.length < 10) {
+            return res.status(400).json({ 
+              message: "The PDF appears to be empty or contains no readable text. Please try a different PDF or paste your resume text manually."
+            });
+          }
         } catch (error) {
           console.error('PDF parsing error:', error);
           return res.status(400).json({ 
-            message: "Failed to parse PDF file. Please ensure it's a valid PDF with readable text."
+            message: "Failed to parse PDF file. This could be due to encryption, image-based content, or file corruption. Please try pasting your resume text manually."
           });
         }
+      } else {
+        return res.status(400).json({ 
+          message: "Unsupported file type. Please upload a .txt or .pdf file."
+        });
       }
 
       if (text.length < 50) {
-        return res.status(400).json({ message: "Resume text is too short" });
+        return res.status(400).json({ 
+          message: "The extracted text is too short to analyze. Please ensure your resume contains sufficient content."
+        });
       }
 
       res.json({ text });
