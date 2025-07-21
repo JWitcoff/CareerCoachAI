@@ -148,7 +148,7 @@ export function AnalysisForm({ onAnalysisComplete, isLoading, setIsLoading }: An
                 name="resumeText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-semibold text-slate-700">Resume Content</FormLabel>
+                    <FormLabel className="text-sm font-semibold text-slate-700">Resume Content (.txt or .pdf)</FormLabel>
                     <FormControl>
                       <div className="space-y-3">
                         <FileUpload 
@@ -156,7 +156,7 @@ export function AnalysisForm({ onAnalysisComplete, isLoading, setIsLoading }: An
                           disabled={isLoading}
                         />
                         <Textarea
-                          placeholder="Or paste your resume text here..."
+                          placeholder="Or paste your resume text here (text from uploaded PDF will appear here)..."
                           rows={6}
                           className="bg-white/70 backdrop-blur-sm resize-none"
                           disabled={isLoading}

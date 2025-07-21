@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, X } from "lucide-react";
+import { Upload, FileText, X, File } from "lucide-react";
 
 interface FileUploadProps {
   onFileContent: (content: string) => void;
@@ -15,8 +15,8 @@ export function FileUpload({ onFileContent, className, disabled = false }: FileU
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
 
   const handleFile = useCallback(async (file: File) => {
-    if (file.type !== 'text/plain') {
-      alert('Please upload a text file (.txt)');
+    if (file.type !== 'text/plain' && file.type !== 'application/pdf') {
+      alert('Please upload a text file (.txt) or PDF file (.pdf)');
       return;
     }
 
@@ -93,10 +93,16 @@ export function FileUpload({ onFileContent, className, disabled = false }: FileU
     >
       {uploadedFile ? (
         <div className="flex items-center justify-center space-x-3">
-          <FileText className="h-8 w-8 text-green-600" />
+          {uploadedFile.endsWith('.pdf') ? (
+            <File className="h-8 w-8 text-red-600" />
+          ) : (
+            <FileText className="h-8 w-8 text-green-600" />
+          )}
           <div className="text-left">
             <p className="text-sm font-medium text-slate-700">{uploadedFile}</p>
-            <p className="text-xs text-green-600">File uploaded successfully</p>
+            <p className="text-xs text-green-600">
+              {uploadedFile.endsWith('.pdf') ? 'PDF parsed successfully' : 'File uploaded successfully'}
+            </p>
           </div>
           <Button
             type="button"
@@ -113,14 +119,14 @@ export function FileUpload({ onFileContent, className, disabled = false }: FileU
           <Upload className={cn("h-8 w-8", isUploading ? "animate-pulse text-primary-500" : "text-slate-400")} />
           <div>
             <p className="text-sm font-medium text-slate-600">
-              {isUploading ? "Uploading..." : "Drop your resume here"}
+              {isUploading ? "Processing file..." : "Drop your resume here"}
             </p>
-            <p className="text-xs text-slate-500">or choose a file below</p>
+            <p className="text-xs text-slate-500">Supports .txt and .pdf files</p>
           </div>
           <div>
             <input
               type="file"
-              accept=".txt,text/plain"
+              accept=".txt,.pdf,text/plain,application/pdf"
               onChange={handleFileSelect}
               disabled={disabled || isUploading}
               className="hidden"

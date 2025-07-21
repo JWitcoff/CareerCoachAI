@@ -7,6 +7,7 @@ import { fetchJobDescriptionFromUrl } from "./services/scraper";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
+// PDF parsing will be imported dynamically
 
 // Configure multer for file uploads
 const upload = multer({
@@ -75,11 +76,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.file.mimetype === 'text/plain') {
         text = req.file.buffer.toString('utf-8');
       } else if (req.file.mimetype === 'application/pdf') {
-        // For PDF parsing, you would need a library like pdf-parse
-        // For now, return an error asking for text format
-        return res.status(400).json({ 
-          message: "PDF parsing not yet implemented. Please paste your resume text directly or upload a .txt file."
-        });
+        try {
+          const pdfParse = require('pdf-parse');
+          const pdfData = await pdfParse(req.file.buffer);
+          text = pdfData.text;
+        } catch (error) {
+          console.error('PDF parsing error:', error);
+          return res.status(400).json({ 
+            message: "Failed to parse PDF file. Please ensure it's a valid PDF with readable text."
+          });
+        }
       }
 
       if (text.length < 50) {

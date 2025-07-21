@@ -33,7 +33,7 @@ The application follows a monorepo structure with clear separation between front
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
 - **Database ORM**: Drizzle ORM with PostgreSQL dialect
-- **File Handling**: Multer for resume file uploads (text/PDF support)
+- **File Handling**: Multer for resume file uploads with PDF text extraction using pdf-parse
 - **External APIs**: OpenAI API for AI analysis, web scraping for job descriptions
 - **Development**: Hot reload with tsx, production build with esbuild
 
@@ -113,5 +113,8 @@ postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-0-region.pooler.supabase.com:5432/
 - ✅ Created modern glassmorphism UI design
 - ✅ Added automatic fallback to in-memory storage for development
 - ✅ Enhanced mobile responsiveness with history toggle
+- ✅ Added PDF file upload support with text extraction
+- ✅ Enhanced file upload UI with format indicators
+- ✅ Real-time database status monitoring
 
 The architecture prioritizes type safety, developer experience, and scalability while maintaining simplicity for a focused resume analysis use case.
