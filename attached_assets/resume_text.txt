@@ -1,0 +1,50 @@
+Justin Witcoff Los Angeles, CA | p: 847.571.3285 | e: jwitcoff@gmail.com
+Experienced FAANG Product Marketer with a track record of using emerging technologies to lead GTM strategy across hardware and software. Skilled at translating data and user insight into scalable solutions, bridging product, marketing, and ops to accelerate growth. Recent focus includes applying AI and intelligent automation to streamline GTM workflows, improve velocity, and deliver repeatable results.
+
+EXPERIENCE
+Kodawari Labs // Principal | AI & Product Strategy Consulting
+05.2023 - Present
+Current Focus Areas:
+• Design and implement AI workflow automations to streamline repetitive tasks and improve operational efficiency.
+• Build intelligent, multi-agent systems to manage complex, real-world tasks with layered reasoning and dynamic tool use.
+• Develop natural, brand-aligned conversational interfaces powered by LLMs to enhance UX and drive engagement.
+Select Clients:
+• Tixr // Leveraged Notion AI to build a centralized GTM Hub, achieving 90% adoption company-wide across a 2-year roadmap, streamlining cross-functional alignment and increasing reducing average product cycle time.
+• Vuora // Built a GPT-powered onboarding flow and brokered a fintech influencer partnership, generating 5M+ views and converting 600+ new users.
+• HOKA // Streamlined social media workflows to align content, brand, and performance teams around product launches, improving campaign execution speed and increasing content output by 30%.
+
+Apple
+Product Marketing Manager, Shazam                                                                                                 09.2021 - 02.2023
+• Partnered with Product, Engineering, and Design to develop and launch cross-platform concert discovery experiences integrated into Apple Music, Maps, Siri, and Search.
+• Pulled user research and usage data to influence product prioritization, roadmap tradeoffs, and GTM messaging.
+• Owned full GTM lifecycle from positioning and audience definition to ASO, push, and post-launch optimization— driving 1M+ engagements and $250K ARR.
+• Oversaw concert-data integration through strategic Bandsintown partnership, informing real-time recommendations in Shazam.
+Product Marketing Manager, Apple Music Radio                                                                                      05.2020 - 09.2021
+• Drove product marketing operations for 100+ weekly radio programs across three global stations, ensuring content launches stayed on time, in scope, and aligned with brand and audience expectations.
+• Led cross-functional coordination across Talent, Artist Relations, Design, Operations, PR, and Production to improve internal workflows—streamlining content development and scaling asset management using Quip and Box.
+• Shaped positioning for flagship programs like The Zane Lowe Show, ensuring creative aligned with insights and goals.
+Executive Assistant to Global Creative Director, Apple Music
+12.2019 - 05.2020
+• Acted as strategic partner to Apple Music's Global Creative Director, representing him in executive comms and coordinating high-impact creative initiatives across multiple departments.
+• Led weekly cross-functional meetings, aggregating team updates to present to Leadership.
+• Entrusted by team leads to exercise discretion in relaying critical information to the Director.
+
+Red Bull // Music Operations Manager (Contract)                                                                                   01.2019 - 04.2019
+• Managed logistics for Red Bull Music Festival LA (guest, vendor, security, production) for 10k attendees across 28 events.
+Endeavor // Executive Assistant to Global Department Head                                                                         03.2017 - 12.2018
+• Contributed to the successful planning and execution of 15+ domestic tours for 30+ artists across 400+ booked dates.
+Dropbox // Mid-Market Account Executive                                                                                           01.2015 - 02.2016
+• Consistent top-performer in the org, exceeding $200,000 in ARR while targeting key enterprises of 1,000+ employees.
+ Yelp // Senior Account Executive                                                                                                 01.2013 - 01.2015
+• Averaged 150% of quota over 2 years, earning a spot in Yelp's competitive Management Development Program.
+
+SKILLS
+Product Marketing & GTM: Go-to-Market Strategy, Cross-functional Launch Coordination, Product Positioning, Audience & Market Sizing, Value Propositions, Messaging, Consumer Insights, Competitive Analysis
+Product & Roadmap Management: JIRA, Notion, Confluence, Asana, Miro, Slack, Quip, Box
+Analytics & Research Tools: SQL, Looker, Notion, App Store / Play Store Analytics, Python, Flask, Render (PaaS)
+AI & Automation: GPT-4 & Claude APIs (text generation, structured outputs, function calling), AI Agents, NLP (intent recognition, text parsing), Twilio SMS API, Zapier, N8N
+Design & Creative: Figma, Adobe Creative Suite (Photoshop, Lightroom), Logic Pro
+
+EDUCATION
+Bucknell University // BA: Management, Minor: Philosophy. Dean's List (3.6 GPA).
+Harvard University (Online) // CS50x Computer Science Certification 2025

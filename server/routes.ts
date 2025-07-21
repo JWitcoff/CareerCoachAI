@@ -7,7 +7,8 @@ import { fetchJobDescriptionFromUrl } from "./services/scraper";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
-// PDF parsing will be imported dynamically
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 // Configure multer for file uploads
 const upload = multer({
@@ -77,8 +78,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         text = req.file.buffer.toString('utf-8');
       } else if (req.file.mimetype === 'application/pdf') {
         try {
-          const pdfParse = await import('pdf-parse');
-          const pdfData = await pdfParse.default(req.file.buffer);
+          // Lazy load pdf-parse only when needed to avoid import issues
+          let pdfParse;
+          try {
+            pdfParse = require('pdf-parse');
+          } catch (requireError) {
+            // If require fails, try dynamic import
+            const pdfModule = await import('pdf-parse');
+            pdfParse = pdfModule.default;
+          }
+          
+          const pdfData = await pdfParse(req.file.buffer);
           text = pdfData.text.trim();
           
           if (!text || text.length < 10) {
@@ -88,8 +98,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (error) {
           console.error('PDF parsing error:', error);
+          // For now, provide helpful message and suggest text paste
           return res.status(400).json({ 
-            message: "Failed to parse PDF file. This could be due to encryption, image-based content, or file corruption. Please try pasting your resume text manually."
+            message: "Unable to extract text from PDF. Please copy and paste your resume text directly into the text field instead."
           });
         }
       } else {
