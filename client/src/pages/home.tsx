@@ -3,9 +3,10 @@ import { AnalysisForm } from "@/components/analysis-form";
 import { AnalysisResults } from "@/components/analysis-results";
 import { AnalysisHistory } from "@/components/analysis-history";
 import { DatabaseStatus } from "@/components/database-status";
-import { Bot, CheckCircle, History, Sparkles } from "lucide-react";
+import { Bot, CheckCircle, History, Sparkles, ArrowLeft, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "wouter";
 import type { Analysis } from "@shared/schema";
 
 export default function Home() {
@@ -30,15 +31,27 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
+              <Link href="/">
+                <Button variant="ghost" size="sm" className="flex items-center">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Home
+                </Button>
+              </Link>
               <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
                 <Bot className="text-white h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-800">AI Career Assistant</h1>
-                <p className="text-sm text-slate-500">Professional Resume Analysis & Interview Coaching</p>
+                <h1 className="text-xl font-bold text-slate-800">Resume Analysis</h1>
+                <p className="text-sm text-slate-500">Professional AI-Powered Resume Analysis</p>
               </div>
             </div>
             <div className="hidden md:flex items-center space-x-3">
+              <Link href="/interview">
+                <Button variant="ghost" size="sm" className="flex items-center">
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  Interview Practice
+                </Button>
+              </Link>
               <Button 
                 variant="ghost" 
                 size="sm"
