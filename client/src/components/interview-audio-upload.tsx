@@ -283,9 +283,14 @@ export function InterviewAudioUpload() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-300">Processing audio...</span>
-                <span className="text-gray-400">This may take a few minutes</span>
+                <span className="text-gray-400">Large files may take several minutes</span>
               </div>
               <Progress value={undefined} className="bg-gray-700" />
+              <div className="text-xs text-gray-400 space-y-1">
+                <div>• Compressing audio if needed</div>
+                <div>• Transcribing with OpenAI Whisper</div>
+                <div>• Analyzing with AI for detailed feedback</div>
+              </div>
             </div>
           )}
 

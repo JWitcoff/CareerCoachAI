@@ -1,11 +1,118 @@
 import OpenAI from "openai";
 import fs from "fs";
+import path from "path";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "@ffmpeg-installer/ffmpeg";
+
+// Set the ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const WHISPER_MAX_SIZE = 25 * 1024 * 1024; // 25MB limit for Whisper API
+
+async function compressAudioForWhisper(inputPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const outputPath = path.join(path.dirname(inputPath), `compressed_${Date.now()}.mp3`);
+    
+    ffmpeg(inputPath)
+      .audioCodec('mp3')
+      .audioBitrate('64k') // Lower bitrate for compression
+      .audioFrequency(16000) // Lower sample rate suitable for speech
+      .on('end', () => {
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        reject(new Error(`Audio compression failed: ${err.message}`));
+      })
+      .save(outputPath);
+  });
+}
+
+async function splitAudioIntoChunks(inputPath: string, chunkDurationMinutes: number = 10): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const outputDir = path.join(path.dirname(inputPath), `chunks_${Date.now()}`);
+    fs.mkdirSync(outputDir, { recursive: true });
+    
+    const chunkPattern = path.join(outputDir, 'chunk_%03d.mp3');
+    
+    ffmpeg(inputPath)
+      .audioCodec('mp3')
+      .audioBitrate('64k')
+      .audioFrequency(16000)
+      .outputOptions([
+        '-f', 'segment',
+        '-segment_time', `${chunkDurationMinutes * 60}`,
+        '-reset_timestamps', '1'
+      ])
+      .on('end', () => {
+        // Get all chunk files
+        const chunks = fs.readdirSync(outputDir)
+          .filter(file => file.startsWith('chunk_') && file.endsWith('.mp3'))
+          .sort()
+          .map(file => path.join(outputDir, file));
+        resolve(chunks);
+      })
+      .on('error', (err) => {
+        reject(new Error(`Audio splitting failed: ${err.message}`));
+      })
+      .save(chunkPattern);
+  });
+}
+
 export async function transcribeAudio(audioFilePath: string): Promise<{ text: string }> {
+  let processedPath = audioFilePath;
+  let chunksToCleanup: string[] = [];
+  let tempFilesToCleanup: string[] = [];
+
   try {
-    const audioReadStream = fs.createReadStream(audioFilePath);
+    // Check file size first
+    const stats = fs.statSync(audioFilePath);
+    
+    if (stats.size > WHISPER_MAX_SIZE) {
+      console.log(`File size ${stats.size} exceeds Whisper limit. Processing...`);
+      
+      // First try compression
+      console.log("Compressing audio...");
+      const compressedPath = await compressAudioForWhisper(audioFilePath);
+      tempFilesToCleanup.push(compressedPath);
+      
+      const compressedStats = fs.statSync(compressedPath);
+      
+      if (compressedStats.size <= WHISPER_MAX_SIZE) {
+        // Compression worked, use compressed file
+        processedPath = compressedPath;
+        console.log(`Compressed file size: ${compressedStats.size}`);
+      } else {
+        // Still too large, need to split into chunks
+        console.log("File still too large after compression. Splitting into chunks...");
+        const chunks = await splitAudioIntoChunks(compressedPath, 8); // 8-minute chunks
+        chunksToCleanup = [...chunks, path.dirname(chunks[0])]; // Include directory for cleanup
+        
+        // Transcribe each chunk and combine
+        const transcriptions: string[] = [];
+        
+        for (let i = 0; i < chunks.length; i++) {
+          console.log(`Transcribing chunk ${i + 1}/${chunks.length}...`);
+          const chunkStream = fs.createReadStream(chunks[i]);
+          
+          const chunkTranscription = await openai.audio.transcriptions.create({
+            file: chunkStream,
+            model: "whisper-1",
+            response_format: "text",
+          });
+          
+          transcriptions.push(chunkTranscription);
+        }
+        
+        // Combine all transcriptions
+        const fullTranscript = transcriptions.join(' ').trim();
+        return { text: fullTranscript };
+      }
+    }
+
+    // Transcribe the processed file (original or compressed)
+    const audioReadStream = fs.createReadStream(processedPath);
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioReadStream,
@@ -17,6 +124,32 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
   } catch (error) {
     console.error("Whisper transcription error:", error);
     throw new Error("Failed to transcribe audio: " + (error instanceof Error ? error.message : "Unknown error"));
+  } finally {
+    // Cleanup temporary files
+    for (const tempFile of tempFilesToCleanup) {
+      try {
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      } catch (err) {
+        console.error(`Failed to cleanup temp file ${tempFile}:`, err);
+      }
+    }
+    
+    // Cleanup chunks and directory
+    for (const chunk of chunksToCleanup) {
+      try {
+        if (fs.existsSync(chunk)) {
+          if (fs.statSync(chunk).isDirectory()) {
+            fs.rmSync(chunk, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(chunk);
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to cleanup chunk ${chunk}:`, err);
+      }
+    }
   }
 }
 
