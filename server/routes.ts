@@ -1,17 +1,20 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { analyzeRequestSchema } from "@shared/schema";
+import { analyzeRequestSchema, insertInterviewAnalysisSchema } from "@shared/schema";
 import { analyzeResumeJobAlignment } from "./services/openai";
 import { fetchJobDescriptionFromUrl } from "./services/scraper";
+import { transcribeAudio, analyzeInterviewTranscript } from "./services/whisper";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
+import fs from "fs";
+import path from "path";
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-// Configure multer for file uploads
-const upload = multer({
+// Configure multer for file uploads (resume files)
+const resumeUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -22,6 +25,37 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only text files and PDFs are allowed'));
+    }
+  }
+});
+
+// Configure multer for audio uploads
+const audioUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'audio');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const timestamp = Date.now();
+      const ext = path.extname(file.originalname);
+      cb(null, `interview_${timestamp}${ext}`);
+    }
+  }),
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB limit for audio files
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept audio files: .wav, .m4a, .mp3
+    const allowedMimeTypes = ['audio/wav', 'audio/wave', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a'];
+    const allowedExtensions = ['.wav', '.mp3', '.m4a'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio files (.wav, .mp3, .m4a) are allowed'));
     }
   }
 });
@@ -66,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload resume file
-  app.post("/api/upload-resume", upload.single('resume'), async (req, res) => {
+  app.post("/api/upload-resume", resumeUpload.single('resume'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -166,6 +200,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload and analyze interview audio
+  app.post("/api/analyze-interview", audioUpload.single('audio'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No audio file uploaded" });
+      }
+
+      const audioPath = req.file.path;
+      const fileName = req.file.filename;
+
+      // Transcribe audio using Whisper
+      const { text: transcript } = await transcribeAudio(audioPath);
+      
+      if (!transcript || transcript.trim().length < 10) {
+        // Clean up the uploaded file
+        fs.unlink(audioPath, () => {});
+        return res.status(400).json({ 
+          message: "Unable to transcribe audio or transcript is too short. Please ensure the audio is clear and contains speech." 
+        });
+      }
+
+      // Analyze the transcript using GPT-4o
+      const analysisResult = await analyzeInterviewTranscript(transcript);
+
+      // Store the analysis in database
+      const analysis = await storage.createInterviewAnalysis({
+        audioFileName: fileName,
+        transcript,
+        overallScore: analysisResult.overallScore,
+        communicationScore: analysisResult.communicationScore,
+        contentScore: analysisResult.contentScore,
+        strengths: analysisResult.strengths,
+        improvements: analysisResult.improvements,
+        keyInsights: analysisResult.keyInsights,
+      });
+
+      // Clean up the uploaded file after processing
+      fs.unlink(audioPath, (err) => {
+        if (err) console.error('Error deleting audio file:', err);
+      });
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Interview analysis error:", error);
+      
+      // Clean up the uploaded file on error
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, () => {});
+      }
+      
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to analyze interview audio"
+      });
+    }
+  });
+
+  // Download transcript
+  app.get("/api/interview/:id/transcript", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const analysis = await storage.getInterviewAnalysis(id);
+      
+      if (!analysis) {
+        return res.status(404).json({ message: "Interview analysis not found" });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="interview_transcript_${analysis.id}.txt"`);
+      res.send(analysis.transcript);
+    } catch (error) {
+      console.error("Failed to download transcript:", error);
+      res.status(500).json({ message: "Failed to download transcript" });
+    }
+  });
+
   // Get all analyses
   app.get("/api/analyses", async (req, res) => {
     try {
@@ -176,6 +285,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to retrieve analyses"
       });
+    }
+  });
+
+  // Get all interview analyses
+  app.get("/api/interview-analyses", async (req, res) => {
+    try {
+      const analyses = await storage.getAllInterviewAnalyses();
+      res.json(analyses);
+    } catch (error) {
+      console.error("Failed to fetch interview analyses:", error);
+      res.status(500).json({ message: "Failed to fetch interview analyses" });
     }
   });
 

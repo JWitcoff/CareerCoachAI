@@ -26,6 +26,27 @@ export const insertAnalysisSchema = createInsertSchema(analyses).omit({
 export type InsertAnalysis = z.infer<typeof insertAnalysisSchema>;
 export type Analysis = typeof analyses.$inferSelect;
 
+export const interviewAnalyses = pgTable("interview_analyses", {
+  id: serial("id").primaryKey(),
+  audioFileName: text("audio_file_name").notNull(),
+  transcript: text("transcript").notNull(),
+  overallScore: integer("overall_score").notNull(),
+  communicationScore: integer("communication_score").notNull(),
+  contentScore: integer("content_score").notNull(),
+  strengths: json("strengths").$type<string[]>().notNull(),
+  improvements: json("improvements").$type<string[]>().notNull(),
+  keyInsights: json("key_insights").$type<string[]>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertInterviewAnalysisSchema = createInsertSchema(interviewAnalyses).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertInterviewAnalysis = z.infer<typeof insertInterviewAnalysisSchema>;
+export type InterviewAnalysis = typeof interviewAnalyses.$inferSelect;
+
 export const analyzeRequestSchema = z.object({
   resumeText: z.string().min(50, "Resume text must be at least 50 characters"),
   jobDescription: z.string().min(50, "Job description must be at least 50 characters"),
