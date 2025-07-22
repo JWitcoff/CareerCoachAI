@@ -2,10 +2,9 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
-import ffmpegPath from "@ffmpeg-installer/ffmpeg";
 
-// Set the ffmpeg path
-ffmpeg.setFfmpegPath(ffmpegPath.path);
+// Use system ffmpeg which has all codecs
+// ffmpeg.setFfmpegPath() - let it use system ffmpeg
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -16,13 +15,13 @@ async function compressAudioForWhisper(inputPath: string): Promise<string> {
     const outputPath = path.join(path.dirname(inputPath), `compressed_${Date.now()}.mp3`);
     
     ffmpeg(inputPath)
-      .audioCodec('mp3')
+      .audioCodec('libmp3lame') // Use specific MP3 encoder
       .audioBitrate('64k') // Lower bitrate for compression
       .audioFrequency(16000) // Lower sample rate suitable for speech
       .on('end', () => {
         resolve(outputPath);
       })
-      .on('error', (err) => {
+      .on('error', (err: any) => {
         reject(new Error(`Audio compression failed: ${err.message}`));
       })
       .save(outputPath);
@@ -37,7 +36,7 @@ async function splitAudioIntoChunks(inputPath: string, chunkDurationMinutes: num
     const chunkPattern = path.join(outputDir, 'chunk_%03d.mp3');
     
     ffmpeg(inputPath)
-      .audioCodec('mp3')
+      .audioCodec('libmp3lame') // Use specific MP3 encoder
       .audioBitrate('64k')
       .audioFrequency(16000)
       .outputOptions([
@@ -53,7 +52,7 @@ async function splitAudioIntoChunks(inputPath: string, chunkDurationMinutes: num
           .map(file => path.join(outputDir, file));
         resolve(chunks);
       })
-      .on('error', (err) => {
+      .on('error', (err: any) => {
         reject(new Error(`Audio splitting failed: ${err.message}`));
       })
       .save(chunkPattern);
