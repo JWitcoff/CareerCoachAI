@@ -44,7 +44,8 @@ const audioUpload = multer({
     }
   }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit for audio files
+    fileSize: 60 * 1024 * 1024, // 60MB limit for audio files (with buffer)
+    fieldSize: 60 * 1024 * 1024, // Field size limit
   },
   fileFilter: (req, file, cb) => {
     // Accept audio files: .wav, .m4a, .mp3
