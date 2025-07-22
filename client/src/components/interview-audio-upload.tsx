@@ -76,8 +76,8 @@ export function InterviewAudioUpload() {
       return;
     }
 
-    if (selectedFile.size > 25 * 1024 * 1024) {
-      alert('File size must be less than 25MB');
+    if (selectedFile.size > 50 * 1024 * 1024) {
+      alert('File size must be less than 50MB');
       return;
     }
 
@@ -228,7 +228,7 @@ export function InterviewAudioUpload() {
                   Drop your audio file here or click to browse
                 </p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Supports .wav, .mp3, .m4a files up to 25MB
+                  Supports .wav, .mp3, .m4a files up to 50MB
                 </p>
               </div>
             </div>
@@ -307,6 +307,7 @@ export function InterviewAudioUpload() {
               <li>• AI will analyze your communication and content quality</li>
               <li>• You'll receive detailed feedback and scoring</li>
               <li>• Download your transcript for future reference</li>
+              <li>• Supports files up to 50MB for longer interviews</li>
             </ul>
           </div>
         </CardContent>
