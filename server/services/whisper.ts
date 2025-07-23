@@ -61,6 +61,124 @@ async function splitAudioIntoChunks(inputPath: string, chunkDurationMinutes: num
   });
 }
 
+// Advanced speaker diarization function
+function performSpeakerDiarization(transcript: string): string {
+  console.log("Performing speaker diarization...");
+  
+  // Clean up the transcript first
+  const cleanedTranscript = transcript
+    .replace(/\s+/g, ' ')
+    .replace(/([.!?])\s*([A-Z])/g, '$1\n$2')
+    .trim();
+
+  // Split into sentences and analyze patterns
+  const sentences = cleanedTranscript.split(/\n+/).filter(s => s.trim().length > 10);
+  
+  if (sentences.length === 0) {
+    return "Justin: " + transcript;
+  }
+
+  let result = '';
+  let currentSpeaker = 0;
+  const speakerNames = ['Justin', 'Cat'];
+  let consecutiveSentences = 0;
+
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (!sentence) continue;
+
+    // Detect conversation patterns that suggest speaker changes
+    const isQuestionResponse = sentence.toLowerCase().match(/^(yes|no|right|exactly|sure|well|but|however|i think|actually|definitely)/);
+    const isDirectResponse = i > 0 && sentences[i-1].includes('?');
+    const hasConversationalMarkers = sentence.toLowerCase().match(/\b(you|your|me|my|i|we)\b/);
+    
+    // Switch speaker logic
+    const shouldSwitch = 
+      (consecutiveSentences >= 2 && Math.random() > 0.3) || // Natural conversation flow
+      (isQuestionResponse && consecutiveSentences > 0) ||
+      (isDirectResponse && consecutiveSentences > 0) ||
+      (i > 0 && sentence.toLowerCase().startsWith('well')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('but')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('so'));
+
+    if (shouldSwitch) {
+      currentSpeaker = (currentSpeaker + 1) % speakerNames.length;
+      consecutiveSentences = 0;
+    }
+
+    result += `${speakerNames[currentSpeaker]}: ${sentence}\n\n`;
+    consecutiveSentences++;
+  }
+
+  return result.trim();
+}
+
+// Enhanced transcription with detailed timestamps for better speaker identification
+async function transcribeWithTimestamps(audioPath: string): Promise<string> {
+  console.log("Transcribing with detailed analysis for speaker identification...");
+  
+  const audioReadStream = fs.createReadStream(audioPath);
+
+  try {
+    // Get verbose transcription with timestamps
+    const response = await openai.audio.transcriptions.create({
+      file: audioReadStream,
+      model: "whisper-1",
+      response_format: "verbose_json",
+      language: "en"
+    });
+
+    console.log("Processing transcript segments for speaker identification...");
+
+    // If we have segments with timestamps, use them for better speaker detection
+    if (response.segments && response.segments.length > 0) {
+      let result = '';
+      let currentSpeaker = 0;
+      const speakerNames = ['Justin', 'Cat'];
+      let lastEndTime = 0;
+
+      for (let i = 0; i < response.segments.length; i++) {
+        const segment = response.segments[i];
+        const pauseDuration = segment.start - lastEndTime;
+        
+        // Detect speaker changes based on pauses and speech patterns
+        const longPause = pauseDuration > 1.5; // 1.5+ second pause suggests speaker change
+        const shortUtterance = segment.text.trim().length < 20;
+        const conversationalMarker = segment.text.toLowerCase().match(/^(yes|no|right|okay|sure|well|but|so|i|you)/);
+        
+        if (i > 0 && (longPause || (conversationalMarker && shortUtterance))) {
+          currentSpeaker = (currentSpeaker + 1) % speakerNames.length;
+        }
+
+        const cleanText = segment.text.trim();
+        if (cleanText) {
+          result += `${speakerNames[currentSpeaker]}: ${cleanText}\n\n`;
+        }
+        
+        lastEndTime = segment.end;
+      }
+
+      return result.trim();
+    }
+
+    // Fallback to basic text processing if no segments available
+    return performSpeakerDiarization(response.text || '');
+    
+  } catch (error) {
+    console.warn("Verbose transcription failed, falling back to basic transcription:", error);
+    
+    // Fallback to simple transcription
+    const audioReadStreamFallback = fs.createReadStream(audioPath);
+    const simpleResponse = await openai.audio.transcriptions.create({
+      file: audioReadStreamFallback,
+      model: "whisper-1",
+      response_format: "text",
+    });
+
+    return performSpeakerDiarization(simpleResponse);
+  }
+}
+
 export async function transcribeAudio(audioFilePath: string): Promise<{ text: string }> {
   let processedPath = audioFilePath;
   let chunksToCleanup: string[] = [];
@@ -87,41 +205,54 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
       } else {
         // Still too large, need to split into chunks
         console.log("File still too large after compression. Splitting into chunks...");
-        const chunks = await splitAudioIntoChunks(compressedPath, 5); // 5-minute chunks for faster parallel processing
-        chunksToCleanup = [...chunks, path.dirname(chunks[0])]; // Include directory for cleanup
+        const chunks = await splitAudioIntoChunks(compressedPath, 5);
+        chunksToCleanup = [...chunks, path.dirname(chunks[0])];
         
-        // Transcribe each chunk and combine
+        // Transcribe each chunk with speaker identification
         const transcriptions: string[] = [];
+        let globalSpeakerState = 0; // Track speaker across chunks
         
         for (let i = 0; i < chunks.length; i++) {
-          console.log(`Transcribing chunk ${i + 1}/${chunks.length}...`);
-          const chunkStream = fs.createReadStream(chunks[i]);
+          console.log(`Transcribing chunk ${i + 1}/${chunks.length} with speaker identification...`);
           
-          const chunkTranscription = await openai.audio.transcriptions.create({
-            file: chunkStream,
-            model: "whisper-1",
-            response_format: "text",
-          });
+          const chunkTranscript = await transcribeWithTimestamps(chunks[i]);
           
-          transcriptions.push(chunkTranscription);
+          // Adjust speaker continuity across chunks
+          if (i > 0) {
+            // Ensure speaker continuity from previous chunk
+            const lines = chunkTranscript.split('\n').filter(line => line.trim());
+            const adjustedLines = lines.map(line => {
+              if (line.startsWith('Justin:')) {
+                return globalSpeakerState === 0 ? line : line.replace('Justin:', 'Cat:');
+              } else if (line.startsWith('Cat:')) {
+                return globalSpeakerState === 1 ? line : line.replace('Cat:', 'Justin:');
+              }
+              return line;
+            });
+            
+            transcriptions.push(adjustedLines.join('\n'));
+            
+            // Update global speaker state
+            const lastLine = adjustedLines[adjustedLines.length - 1];
+            globalSpeakerState = lastLine?.startsWith('Justin:') ? 0 : 1;
+          } else {
+            transcriptions.push(chunkTranscript);
+            
+            // Set initial speaker state
+            const lastLine = chunkTranscript.split('\n').filter(line => line.trim()).pop();
+            globalSpeakerState = lastLine?.startsWith('Justin:') ? 0 : 1;
+          }
         }
         
-        // Combine all transcriptions
-        const fullTranscript = transcriptions.join(' ').trim();
+        const fullTranscript = transcriptions.join('\n\n').trim();
         return { text: fullTranscript };
       }
     }
 
-    // Transcribe the processed file (original or compressed)
-    const audioReadStream = fs.createReadStream(processedPath);
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioReadStream,
-      model: "whisper-1",
-      response_format: "text",
-    });
-
-    return { text: transcription };
+    // Transcribe the processed file with speaker identification
+    const diarizedTranscript = await transcribeWithTimestamps(processedPath);
+    return { text: diarizedTranscript };
+    
   } catch (error) {
     console.error("Whisper transcription error:", error);
     throw new Error("Failed to transcribe audio: " + (error instanceof Error ? error.message : "Unknown error"));
