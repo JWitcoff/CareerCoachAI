@@ -76,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const analysis = await storage.createAnalysis({
         resumeText: validatedData.resumeText,
-        jobDescription: validatedData.jobDescription,
+        jobDescription: validatedData.jobDescription || null,
         additionalContext: validatedData.additionalContext,
         alignmentScore: analysisResult.alignmentScore,
         strengths: analysisResult.strengths,

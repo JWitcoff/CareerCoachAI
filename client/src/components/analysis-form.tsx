@@ -175,7 +175,7 @@ export function AnalysisForm({ onAnalysisComplete, isLoading, setIsLoading }: An
                 name="jobDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-semibold text-slate-700">Job Description</FormLabel>
+                    <FormLabel className="text-sm font-semibold text-slate-700">Job Description (Optional)</FormLabel>
                     <FormControl>
                       <div className="space-y-3">
                         <div className="flex space-x-2">
@@ -229,7 +229,7 @@ export function AnalysisForm({ onAnalysisComplete, isLoading, setIsLoading }: An
                         ) : null}
                         
                         <Textarea
-                          placeholder="Paste job description here..."
+                          placeholder="Paste job description here for targeted analysis, or leave empty for general resume feedback..."
                           rows={5}
                           className="bg-white/70 backdrop-blur-sm resize-none"
                           disabled={isLoading}

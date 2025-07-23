@@ -120,5 +120,7 @@ postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-0-region.pooler.supabase.com:5432/
 - ✅ Added intelligent speaker identification using conversation patterns
 - ✅ Enhanced audio processing with 32kbps mono compression for faster transcription
 - ✅ Fixed hybrid storage system with automatic database fallback
+- ✅ Integrated embedded ChatGPT-style bot for interview follow-up questions
+- ✅ Made job description optional for resume analysis - supports both targeted and general analysis
 
 The architecture prioritizes type safety, developer experience, and scalability while maintaining simplicity for a focused resume analysis use case.

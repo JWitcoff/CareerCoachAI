@@ -5,7 +5,7 @@ import { z } from "zod";
 export const analyses = pgTable("analyses", {
   id: serial("id").primaryKey(),
   resumeText: text("resume_text").notNull(),
-  jobDescription: text("job_description").notNull(),
+  jobDescription: text("job_description"),
   additionalContext: text("additional_context"),
   alignmentScore: integer("alignment_score").notNull(),
   strengths: json("strengths").$type<string[]>().notNull(),
@@ -66,7 +66,7 @@ export type InterviewChat = typeof interviewChats.$inferSelect;
 
 export const analyzeRequestSchema = z.object({
   resumeText: z.string().min(50, "Resume text must be at least 50 characters"),
-  jobDescription: z.string().min(50, "Job description must be at least 50 characters"),
+  jobDescription: z.string().optional(),
   additionalContext: z.string().optional(),
 });
 

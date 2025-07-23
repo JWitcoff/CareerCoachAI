@@ -21,11 +21,12 @@ export interface AnalysisResult {
 
 export async function analyzeResumeJobAlignment(
   resumeText: string,
-  jobDescription: string,
+  jobDescription?: string,
   additionalContext?: string
 ): Promise<AnalysisResult> {
   try {
-    const prompt = `You are an advanced AI career assistant trained to provide professional-grade resume evaluations and interview coaching. Your role is to help users improve their job applications by carefully comparing their resume to a provided job description and offering constructive, high-level feedback.
+    const prompt = jobDescription 
+      ? `You are an advanced AI career assistant trained to provide professional-grade resume evaluations and interview coaching. Your role is to help users improve their job applications by carefully comparing their resume to a provided job description and offering constructive, high-level feedback.
 
 Maintain a formal, clear, and concise tone. Avoid generic advice. Focus instead on nuanced, role-specific insights that improve the candidate's alignment with the opportunity. Do not invent qualifications that are not present in the resume.
 
@@ -58,11 +59,47 @@ Analyze the resume against the job description and provide your response in JSON
 
 Guidelines:
 - Generate 3-5 strengths that specifically align with the job requirements
-- Identify 3-5 gaps or areas for improvement
+- Identify 3-5 gaps or areas for improvement  
 - Provide 2-3 formatting suggestions with before/after examples
 - Generate 5-8 role-specific interview questions derived from the job description
 - For each interview question, provide 3-4 ideal answer traits
-- Be direct and honest - the goal is to help the user get hired`;
+- Be direct and honest - the goal is to help the user get hired`
+      : `You are an advanced AI career assistant trained to provide professional-grade resume evaluations and interview coaching. Your role is to help users improve their resumes with general best practices and industry standards.
+
+Maintain a formal, clear, and concise tone. Focus on resume quality, structure, content effectiveness, and general career improvement advice. Do not invent qualifications that are not present in the resume.
+
+RESUME:
+${resumeText}
+
+${additionalContext ? `ADDITIONAL CONTEXT:\n${additionalContext}\n` : ''}
+
+Since no specific job description was provided, analyze the resume for general improvement and career advancement. Provide your response in JSON format with the following structure:
+
+{
+  "alignmentScore": number (0-100, score based on general resume quality),
+  "strengths": ["specific strength 1", "specific strength 2", ...],
+  "gaps": ["specific gap 1", "specific gap 2", ...],
+  "formattingSuggestions": [
+    {"before": "original text example", "after": "improved text example"},
+    ...
+  ],
+  "interviewQuestions": [
+    {
+      "question": "general interview question based on resume content",
+      "idealAnswerTraits": ["trait 1", "trait 2", "trait 3"]
+    },
+    ...
+  ]
+}
+
+Guidelines:
+- Generate 3-5 strengths based on resume content and structure
+- Identify 3-5 gaps or areas for general improvement
+- Provide 2-3 formatting suggestions with before/after examples
+- Generate 5-8 general interview questions based on the candidate's background
+- For each interview question, provide 3-4 ideal answer traits
+- Focus on industry best practices and general career advancement
+- Be direct and honest - the goal is to help improve the resume overall`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -103,8 +140,9 @@ Guidelines:
           }))
         : []
     };
+
   } catch (error) {
-    console.error("OpenAI analysis error:", error);
-    throw new Error(`Failed to analyze resume: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error("Analysis error:", error);
+    throw new Error("Failed to analyze resume: " + (error instanceof Error ? error.message : "Unknown error"));
   }
 }
