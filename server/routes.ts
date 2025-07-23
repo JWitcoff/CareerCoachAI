@@ -5,6 +5,7 @@ import { analyzeRequestSchema, insertInterviewAnalysisSchema, insertInterviewCha
 import { analyzeResumeJobAlignment } from "./services/openai";
 import { fetchJobDescriptionFromUrl } from "./services/scraper";
 import { transcribeAudio, analyzeInterviewTranscript } from "./services/whisper";
+import { transcribeWithFallback } from "./services/elevenlabs-scribe";
 import { generateChatResponse } from "./services/interview-chat";
 import multer from "multer";
 import { z } from "zod";
@@ -212,8 +213,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioPath = req.file.path;
       const fileName = req.file.filename;
 
-      // Transcribe audio using Whisper
-      const { text: transcript } = await transcribeAudio(audioPath);
+      // Transcribe audio using ElevenLabs Scribe (with Whisper fallback)
+      const { text: transcript } = await transcribeWithFallback(audioPath);
       
       if (!transcript || transcript.trim().length < 10) {
         // Clean up the uploaded file
