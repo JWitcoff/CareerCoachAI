@@ -52,12 +52,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInterviewAnalysis(insertAnalysis: InsertInterviewAnalysis): Promise<InterviewAnalysis> {
-    const [result] = await this.db
-      .insert(interviewAnalyses)
-      .values([insertAnalysis])
-      .returning();
-    
-    return result;
+    try {
+      const [result] = await this.db
+        .insert(interviewAnalyses)
+        .values([insertAnalysis])
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.log("Database save failed, falling back to in-memory storage:", error instanceof Error ? error.message : "Unknown error");
+      throw error; // Let the caller handle the fallback
+    }
   }
 
   async getInterviewAnalysis(id: number): Promise<InterviewAnalysis | undefined> {
@@ -145,7 +150,96 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Export storage instance based on environment
-export const storage = process.env.DATABASE_URL 
-  ? new DatabaseStorage()
-  : new MemStorage();
+// Hybrid storage with automatic fallback
+class HybridStorage implements IStorage {
+  private primaryStorage: DatabaseStorage | null = null;
+  private fallbackStorage: MemStorage = new MemStorage();
+
+  constructor() {
+    if (process.env.DATABASE_URL) {
+      try {
+        this.primaryStorage = new DatabaseStorage();
+        console.log("Database storage initialized");
+      } catch (error) {
+        console.log("Database initialization failed, using in-memory storage:", error instanceof Error ? error.message : "Unknown error");
+      }
+    } else {
+      console.log("No DATABASE_URL found, using in-memory storage");
+    }
+  }
+
+  async createAnalysis(insertAnalysis: InsertAnalysis): Promise<Analysis> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.createAnalysis(insertAnalysis);
+      } catch (error) {
+        console.log("Database save failed, using fallback storage");
+        return await this.fallbackStorage.createAnalysis(insertAnalysis);
+      }
+    }
+    return await this.fallbackStorage.createAnalysis(insertAnalysis);
+  }
+
+  async getAnalysis(id: number): Promise<Analysis | undefined> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.getAnalysis(id);
+      } catch (error) {
+        console.log("Database read failed, using fallback storage");
+        return await this.fallbackStorage.getAnalysis(id);
+      }
+    }
+    return await this.fallbackStorage.getAnalysis(id);
+  }
+
+  async getAllAnalyses(): Promise<Analysis[]> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.getAllAnalyses();
+      } catch (error) {
+        console.log("Database read failed, using fallback storage");
+        return await this.fallbackStorage.getAllAnalyses();
+      }
+    }
+    return await this.fallbackStorage.getAllAnalyses();
+  }
+
+  async createInterviewAnalysis(insertAnalysis: InsertInterviewAnalysis): Promise<InterviewAnalysis> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.createInterviewAnalysis(insertAnalysis);
+      } catch (error) {
+        console.log("Database save failed, using fallback storage");
+        return await this.fallbackStorage.createInterviewAnalysis(insertAnalysis);
+      }
+    }
+    return await this.fallbackStorage.createInterviewAnalysis(insertAnalysis);
+  }
+
+  async getInterviewAnalysis(id: number): Promise<InterviewAnalysis | undefined> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.getInterviewAnalysis(id);
+      } catch (error) {
+        console.log("Database read failed, using fallback storage");
+        return await this.fallbackStorage.getInterviewAnalysis(id);
+      }
+    }
+    return await this.fallbackStorage.getInterviewAnalysis(id);
+  }
+
+  async getAllInterviewAnalyses(): Promise<InterviewAnalysis[]> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.getAllInterviewAnalyses();
+      } catch (error) {
+        console.log("Database read failed, using fallback storage");
+        return await this.fallbackStorage.getAllInterviewAnalyses();
+      }
+    }
+    return await this.fallbackStorage.getAllInterviewAnalyses();
+  }
+}
+
+// Initialize hybrid storage with automatic fallback
+export const storage = new HybridStorage();
