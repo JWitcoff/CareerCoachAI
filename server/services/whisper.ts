@@ -16,8 +16,9 @@ async function compressAudioForWhisper(inputPath: string): Promise<string> {
     
     ffmpeg(inputPath)
       .audioCodec('libmp3lame') // Use specific MP3 encoder
-      .audioBitrate('64k') // Lower bitrate for compression
+      .audioBitrate('32k') // Aggressive compression for faster processing
       .audioFrequency(16000) // Lower sample rate suitable for speech
+      .audioChannels(1) // Mono audio for speech
       .on('end', () => {
         resolve(outputPath);
       })
@@ -37,8 +38,9 @@ async function splitAudioIntoChunks(inputPath: string, chunkDurationMinutes: num
     
     ffmpeg(inputPath)
       .audioCodec('libmp3lame') // Use specific MP3 encoder
-      .audioBitrate('64k')
+      .audioBitrate('32k') // Aggressive compression
       .audioFrequency(16000)
+      .audioChannels(1) // Mono for faster processing
       .outputOptions([
         '-f', 'segment',
         '-segment_time', `${chunkDurationMinutes * 60}`,
@@ -85,7 +87,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
       } else {
         // Still too large, need to split into chunks
         console.log("File still too large after compression. Splitting into chunks...");
-        const chunks = await splitAudioIntoChunks(compressedPath, 8); // 8-minute chunks
+        const chunks = await splitAudioIntoChunks(compressedPath, 5); // 5-minute chunks for faster parallel processing
         chunksToCleanup = [...chunks, path.dirname(chunks[0])]; // Include directory for cleanup
         
         // Transcribe each chunk and combine

@@ -56,12 +56,11 @@ export function InterviewAudioUpload() {
   useEffect(() => {
     if (uploadMutation.isPending) {
       const stages = [
-        { stage: "Uploading audio file...", progress: 10, duration: 1000 },
-        { stage: "Checking file size and format...", progress: 20, duration: 1500 },
-        { stage: "Processing audio (compression if needed)...", progress: 35, duration: 3000 },
-        { stage: "Transcribing with OpenAI Whisper...", progress: 65, duration: 8000 },
-        { stage: "Analyzing communication and content...", progress: 85, duration: 4000 },
-        { stage: "Generating detailed feedback...", progress: 95, duration: 2000 },
+        { stage: "Uploading audio file...", progress: 15, duration: 800 },
+        { stage: "Optimizing audio format...", progress: 30, duration: 1200 },
+        { stage: "Transcribing with OpenAI Whisper...", progress: 70, duration: 2500 },
+        { stage: "Analyzing communication patterns...", progress: 90, duration: 1000 },
+        { stage: "Generating feedback...", progress: 98, duration: 500 },
       ];
 
       let currentStageIndex = 0;
@@ -77,7 +76,7 @@ export function InterviewAudioUpload() {
         } else {
           clearInterval(progressInterval);
         }
-      }, 3000); // Change stage every 3 seconds
+      }, 1500); // Change stage every 1.5 seconds for faster feedback
 
       return () => clearInterval(progressInterval);
     } else {
