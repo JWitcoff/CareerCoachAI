@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
-import { analyzeAndDiarizeSpeakers } from "./speaker-analyzer";
+import { enhancedSpeakerAnalysis, formatEnhancedTranscript } from "./enhanced-speaker-analyzer";
 
 // Use system ffmpeg which has all codecs
 // ffmpeg.setFfmpegPath() - let it use system ffmpeg
@@ -269,18 +269,55 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
         
         const fullTranscript = transcriptions.join('\n\n').trim();
         
-        // Apply AI speaker analysis to the combined transcript
-        const aiDiarizedTranscript = await analyzeAndDiarizeSpeakers(fullTranscript);
-        return { text: aiDiarizedTranscript };
+        // Apply enhanced AI speaker analysis to the combined transcript
+        console.log("Applying enhanced speaker analysis to combined transcript...");
+        const segments = []; // Create mock segments from combined transcript
+        const sentences = fullTranscript.split(/[.!?]+/).filter(s => s.trim().length > 5);
+        sentences.forEach((sentence, i) => {
+          segments.push({
+            id: i,
+            start: i * 3, // Rough timestamp estimation
+            end: (i + 1) * 3,
+            text: sentence.trim()
+          });
+        });
+        
+        const analysis = await enhancedSpeakerAnalysis(segments, fullTranscript);
+        const enhancedTranscript = formatEnhancedTranscript(analysis.segments, analysis.speakers);
+
+        console.log(`Enhanced speaker analysis complete: ${analysis.speakers.length} speakers identified`);
+        analysis.speakers.forEach(speaker => {
+          const genderStr = speaker.gender !== 'unknown' ? ` (${speaker.gender})` : '';
+          console.log(`- ${speaker.name}${genderStr}: ${speaker.characteristics.join(', ')}`);
+        });
+
+        return { text: enhancedTranscript };
       }
     }
 
     // Transcribe the processed file with AI-powered speaker identification
     const rawTranscript = await transcribeWithTimestamps(processedPath);
     
-    // Use AI to intelligently identify speakers
-    const aiDiarizedTranscript = await analyzeAndDiarizeSpeakers(rawTranscript);
-    return { text: aiDiarizedTranscript };
+    // Use enhanced AI to intelligently identify speakers with gender detection
+    console.log("Applying enhanced speaker analysis to single file transcript...");
+    const sentences = rawTranscript.split(/[.!?]+/).filter(s => s.trim().length > 5);
+    const mockSegments = sentences.map((sentence, i) => ({
+      id: i,
+      start: i * 3,
+      end: (i + 1) * 3,
+      text: sentence.trim()
+    }));
+    
+    const analysis = await enhancedSpeakerAnalysis(mockSegments, rawTranscript);
+    const enhancedTranscript = formatEnhancedTranscript(analysis.segments, analysis.speakers);
+
+    console.log(`Enhanced speaker analysis complete: ${analysis.speakers.length} speakers identified`);
+    analysis.speakers.forEach(speaker => {
+      const genderStr = speaker.gender !== 'unknown' ? ` (${speaker.gender})` : '';
+      console.log(`- ${speaker.name}${genderStr}: ${speaker.characteristics.join(', ')}`);
+    });
+
+    return { text: enhancedTranscript };
     
   } catch (error) {
     console.error("Whisper transcription error:", error);
