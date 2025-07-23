@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileAudio, AlertCircle, CheckCircle, Download, BarChart3 } from "lucide-react";
@@ -16,6 +16,8 @@ export function InterviewAudioUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [analysis, setAnalysis] = useState<InterviewAnalysis | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentStage, setCurrentStage] = useState("");
 
   const uploadMutation = useMutation({
     mutationFn: async (audioFile: File) => {
@@ -35,10 +37,54 @@ export function InterviewAudioUpload() {
       return response.json();
     },
     onSuccess: (data: InterviewAnalysis) => {
-      setAnalysis(data);
-      setFile(null);
+      setUploadProgress(100);
+      setCurrentStage("Analysis complete!");
+      setTimeout(() => {
+        setAnalysis(data);
+        setFile(null);
+        setUploadProgress(0);
+        setCurrentStage("");
+      }, 1000);
     },
+    onError: () => {
+      setUploadProgress(0);
+      setCurrentStage("");
+    }
   });
+
+  // Simulate progress stages for better UX
+  useEffect(() => {
+    if (uploadMutation.isPending) {
+      const stages = [
+        { stage: "Uploading audio file...", progress: 10, duration: 1000 },
+        { stage: "Checking file size and format...", progress: 20, duration: 1500 },
+        { stage: "Processing audio (compression if needed)...", progress: 35, duration: 3000 },
+        { stage: "Transcribing with OpenAI Whisper...", progress: 65, duration: 8000 },
+        { stage: "Analyzing communication and content...", progress: 85, duration: 4000 },
+        { stage: "Generating detailed feedback...", progress: 95, duration: 2000 },
+      ];
+
+      let currentStageIndex = 0;
+      setCurrentStage(stages[0].stage);
+      setUploadProgress(0);
+
+      const progressInterval = setInterval(() => {
+        if (currentStageIndex < stages.length) {
+          const stage = stages[currentStageIndex];
+          setCurrentStage(stage.stage);
+          setUploadProgress(stage.progress);
+          currentStageIndex++;
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 3000); // Change stage every 3 seconds
+
+      return () => clearInterval(progressInterval);
+    } else {
+      setUploadProgress(0);
+      setCurrentStage("");
+    }
+  }, [uploadMutation.isPending]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -278,18 +324,22 @@ export function InterviewAudioUpload() {
             </Button>
           )}
 
-          {/* Progress */}
+          {/* Animated Progress */}
           {uploadMutation.isPending && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-300">Processing audio...</span>
-                <span className="text-gray-400">Large files may take several minutes</span>
+                <span className="text-gray-300">{currentStage}</span>
+                <span className="text-gray-400">{uploadProgress}%</span>
               </div>
-              <Progress value={undefined} className="bg-gray-700" />
-              <div className="text-xs text-gray-400 space-y-1">
-                <div>• Compressing audio if needed</div>
-                <div>• Transcribing with OpenAI Whisper</div>
-                <div>• Analyzing with AI for detailed feedback</div>
+              <Progress 
+                value={uploadProgress} 
+                className="bg-gray-700 h-2"
+              />
+              <div className="text-xs text-gray-400 text-center">
+                {file && file.size > 25 * 1024 * 1024 
+                  ? "Large file detected - processing may take several minutes"
+                  : "Processing your interview audio..."
+                }
               </div>
             </div>
           )}
