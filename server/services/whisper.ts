@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
+import { analyzeAndDiarizeSpeakers } from "./speaker-analyzer";
 
 // Use system ffmpeg which has all codecs
 // ffmpeg.setFfmpegPath() - let it use system ffmpeg
@@ -92,14 +93,21 @@ function performSpeakerDiarization(transcript: string): string {
     const isDirectResponse = i > 0 && sentences[i-1].includes('?');
     const hasConversationalMarkers = sentence.toLowerCase().match(/\b(you|your|me|my|i|we)\b/);
     
-    // Switch speaker logic
+    // More aggressive switch speaker logic
     const shouldSwitch = 
-      (consecutiveSentences >= 2 && Math.random() > 0.3) || // Natural conversation flow
+      (consecutiveSentences >= 2) || // Switch every 2 sentences
       (isQuestionResponse && consecutiveSentences > 0) ||
       (isDirectResponse && consecutiveSentences > 0) ||
       (i > 0 && sentence.toLowerCase().startsWith('well')) ||
       (i > 0 && sentence.toLowerCase().startsWith('but')) ||
-      (i > 0 && sentence.toLowerCase().startsWith('so'));
+      (i > 0 && sentence.toLowerCase().startsWith('so')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('yeah')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('yes')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('no')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('right')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('exactly')) ||
+      (i > 0 && sentence.toLowerCase().startsWith('actually')) ||
+      (consecutiveSentences >= 1 && sentence.length < 30); // Short responses likely from other speaker
 
     if (shouldSwitch) {
       currentSpeaker = (currentSpeaker + 1) % speakerNames.length;
@@ -141,12 +149,27 @@ async function transcribeWithTimestamps(audioPath: string): Promise<string> {
         const segment = response.segments[i];
         const pauseDuration = segment.start - lastEndTime;
         
-        // Detect speaker changes based on pauses and speech patterns
-        const longPause = pauseDuration > 1.5; // 1.5+ second pause suggests speaker change
-        const shortUtterance = segment.text.trim().length < 20;
-        const conversationalMarker = segment.text.toLowerCase().match(/^(yes|no|right|okay|sure|well|but|so|i|you)/);
+        // More aggressive speaker change detection
+        const longPause = pauseDuration > 0.8; // Reduced threshold for faster speaker switching
+        const mediumPause = pauseDuration > 0.4;
+        const shortUtterance = segment.text.trim().length < 30;
+        const veryShortUtterance = segment.text.trim().length < 15;
         
-        if (i > 0 && (longPause || (conversationalMarker && shortUtterance))) {
+        // Enhanced conversational markers
+        const conversationalMarker = segment.text.toLowerCase().match(/^(yes|no|right|okay|sure|well|but|so|i think|actually|definitely|exactly|absolutely|totally|yeah|yep|uh|um|oh|ah)/);
+        const questionResponse = segment.text.toLowerCase().match(/^(yes|no|right|exactly|sure|absolutely|definitely|of course|not really|maybe|probably)/);
+        const interruptionMarker = segment.text.toLowerCase().match(/^(but|however|actually|wait|hold on|sorry|excuse me)/);
+        
+        // Force speaker changes more frequently
+        const shouldSwitch = i > 0 && (
+          longPause || 
+          (mediumPause && (conversationalMarker || shortUtterance)) ||
+          (questionResponse && veryShortUtterance) ||
+          interruptionMarker ||
+          (i % 3 === 0 && mediumPause) // Force switch every 3 segments with medium pause
+        );
+        
+        if (shouldSwitch) {
           currentSpeaker = (currentSpeaker + 1) % speakerNames.length;
         }
 
@@ -245,13 +268,19 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
         }
         
         const fullTranscript = transcriptions.join('\n\n').trim();
-        return { text: fullTranscript };
+        
+        // Apply AI speaker analysis to the combined transcript
+        const aiDiarizedTranscript = await analyzeAndDiarizeSpeakers(fullTranscript);
+        return { text: aiDiarizedTranscript };
       }
     }
 
-    // Transcribe the processed file with speaker identification
-    const diarizedTranscript = await transcribeWithTimestamps(processedPath);
-    return { text: diarizedTranscript };
+    // Transcribe the processed file with AI-powered speaker identification
+    const rawTranscript = await transcribeWithTimestamps(processedPath);
+    
+    // Use AI to intelligently identify speakers
+    const aiDiarizedTranscript = await analyzeAndDiarizeSpeakers(rawTranscript);
+    return { text: aiDiarizedTranscript };
     
   } catch (error) {
     console.error("Whisper transcription error:", error);
