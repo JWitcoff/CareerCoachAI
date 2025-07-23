@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { analyzeRequestSchema, insertInterviewAnalysisSchema } from "@shared/schema";
+import { analyzeRequestSchema, insertInterviewAnalysisSchema, insertInterviewChatSchema } from "@shared/schema";
 import { analyzeResumeJobAlignment } from "./services/openai";
 import { fetchJobDescriptionFromUrl } from "./services/scraper";
 import { transcribeAudio, analyzeInterviewTranscript } from "./services/whisper";
+import { generateChatResponse } from "./services/interview-chat";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
@@ -285,6 +286,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Get analyses error:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to retrieve analyses"
+      });
+    }
+  });
+
+  // Chat with AI about interview analysis
+  app.post("/api/interview/:id/chat", async (req, res) => {
+    try {
+      const interviewId = parseInt(req.params.id);
+      if (isNaN(interviewId)) {
+        return res.status(400).json({ message: "Invalid interview ID" });
+      }
+
+      const { message } = z.object({ message: z.string().min(1) }).parse(req.body);
+      
+      // Get the interview analysis for context
+      const analysis = await storage.getInterviewAnalysis(interviewId);
+      if (!analysis) {
+        return res.status(404).json({ message: "Interview analysis not found" });
+      }
+
+      // Generate AI response based on the analysis and user question
+      const aiResponse = await generateChatResponse(analysis, message);
+
+      // Store the chat message and response
+      const chat = await storage.createInterviewChat({
+        interviewAnalysisId: interviewId,
+        message,
+        response: aiResponse,
+      });
+
+      res.json(chat);
+    } catch (error) {
+      console.error("Interview chat error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to process chat message"
+      });
+    }
+  });
+
+  // Get chat history for an interview
+  app.get("/api/interview/:id/chat", async (req, res) => {
+    try {
+      const interviewId = parseInt(req.params.id);
+      if (isNaN(interviewId)) {
+        return res.status(400).json({ message: "Invalid interview ID" });
+      }
+
+      const chats = await storage.getInterviewChats(interviewId);
+      res.json(chats);
+    } catch (error) {
+      console.error("Get chat history error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to get chat history"
       });
     }
   });

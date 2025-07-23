@@ -47,6 +47,23 @@ export const insertInterviewAnalysisSchema = createInsertSchema(interviewAnalyse
 export type InsertInterviewAnalysis = z.infer<typeof insertInterviewAnalysisSchema>;
 export type InterviewAnalysis = typeof interviewAnalyses.$inferSelect;
 
+// Chat messages for follow-up questions about interview analysis
+export const interviewChats = pgTable("interview_chats", {
+  id: serial("id").primaryKey(),
+  interviewAnalysisId: integer("interview_analysis_id").references(() => interviewAnalyses.id).notNull(),
+  message: text("message").notNull(),
+  response: text("response").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertInterviewChatSchema = createInsertSchema(interviewChats).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertInterviewChat = z.infer<typeof insertInterviewChatSchema>;
+export type InterviewChat = typeof interviewChats.$inferSelect;
+
 export const analyzeRequestSchema = z.object({
   resumeText: z.string().min(50, "Resume text must be at least 50 characters"),
   jobDescription: z.string().min(50, "Job description must be at least 50 characters"),

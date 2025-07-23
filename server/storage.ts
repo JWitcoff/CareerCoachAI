@@ -1,4 +1,4 @@
-import { analyses, interviewAnalyses, type Analysis, type InsertAnalysis, type InterviewAnalysis, type InsertInterviewAnalysis } from "@shared/schema";
+import { analyses, interviewAnalyses, interviewChats, type Analysis, type InsertAnalysis, type InterviewAnalysis, type InsertInterviewAnalysis, type InterviewChat, type InsertInterviewChat } from "@shared/schema";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, desc } from "drizzle-orm";
@@ -10,6 +10,8 @@ export interface IStorage {
   createInterviewAnalysis(analysis: InsertInterviewAnalysis): Promise<InterviewAnalysis>;
   getInterviewAnalysis(id: number): Promise<InterviewAnalysis | undefined>;
   getAllInterviewAnalyses(): Promise<InterviewAnalysis[]>;
+  createInterviewChat(chat: InsertInterviewChat): Promise<InterviewChat>;
+  getInterviewChats(interviewAnalysisId: number): Promise<InterviewChat[]>;
 }
 
 // Supabase/Neon Database Storage
@@ -81,20 +83,46 @@ export class DatabaseStorage implements IStorage {
       .from(interviewAnalyses)
       .orderBy(desc(interviewAnalyses.createdAt));
   }
+
+  async createInterviewChat(insertChat: InsertInterviewChat): Promise<InterviewChat> {
+    try {
+      const [result] = await this.db
+        .insert(interviewChats)
+        .values([insertChat])
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.log("Database chat save failed:", error instanceof Error ? error.message : "Unknown error");
+      throw error;
+    }
+  }
+
+  async getInterviewChats(interviewAnalysisId: number): Promise<InterviewChat[]> {
+    return await this.db
+      .select()
+      .from(interviewChats)
+      .where(eq(interviewChats.interviewAnalysisId, interviewAnalysisId))
+      .orderBy(desc(interviewChats.createdAt));
+  }
 }
 
 // Fallback in-memory storage for development
 export class MemStorage implements IStorage {
   private analyses: Map<number, Analysis>;
   private interviewAnalyses: Map<number, InterviewAnalysis>;
+  private interviewChats: Map<number, InterviewChat>;
   private currentId: number;
   private currentInterviewId: number;
+  private currentChatId: number;
 
   constructor() {
     this.analyses = new Map();
     this.interviewAnalyses = new Map();
+    this.interviewChats = new Map();
     this.currentId = 1;
     this.currentInterviewId = 1;
+    this.currentChatId = 1;
   }
 
   async createAnalysis(insertAnalysis: InsertAnalysis): Promise<Analysis> {
@@ -147,6 +175,25 @@ export class MemStorage implements IStorage {
 
   async getAllInterviewAnalyses(): Promise<InterviewAnalysis[]> {
     return Array.from(this.interviewAnalyses.values());
+  }
+
+  async createInterviewChat(insertChat: InsertInterviewChat): Promise<InterviewChat> {
+    const id = this.currentChatId++;
+    const chat: InterviewChat = {
+      id,
+      interviewAnalysisId: insertChat.interviewAnalysisId,
+      message: insertChat.message,
+      response: insertChat.response,
+      createdAt: new Date(),
+    };
+    this.interviewChats.set(id, chat);
+    return chat;
+  }
+
+  async getInterviewChats(interviewAnalysisId: number): Promise<InterviewChat[]> {
+    return Array.from(this.interviewChats.values())
+      .filter(chat => chat.interviewAnalysisId === interviewAnalysisId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 }
 
@@ -238,6 +285,30 @@ class HybridStorage implements IStorage {
       }
     }
     return await this.fallbackStorage.getAllInterviewAnalyses();
+  }
+
+  async createInterviewChat(insertChat: InsertInterviewChat): Promise<InterviewChat> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.createInterviewChat(insertChat);
+      } catch (error) {
+        console.log("Database chat save failed, using fallback storage");
+        return await this.fallbackStorage.createInterviewChat(insertChat);
+      }
+    }
+    return await this.fallbackStorage.createInterviewChat(insertChat);
+  }
+
+  async getInterviewChats(interviewAnalysisId: number): Promise<InterviewChat[]> {
+    if (this.primaryStorage) {
+      try {
+        return await this.primaryStorage.getInterviewChats(interviewAnalysisId);
+      } catch (error) {
+        console.log("Database read failed, using fallback storage");
+        return await this.fallbackStorage.getInterviewChats(interviewAnalysisId);
+      }
+    }
+    return await this.fallbackStorage.getInterviewChats(interviewAnalysisId);
   }
 }
 

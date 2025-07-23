@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { InterviewAnalysis } from "@shared/schema";
+import { InterviewChatComponent } from "./interview-chat";
 
 interface AnalysisResults {
   analysis: InterviewAnalysis;
@@ -234,6 +235,11 @@ export function InterviewAudioUpload() {
             </div>
           </CardContent>
         </Card>
+
+        {/* AI Chat Component for Follow-up Questions */}
+        <div className="mt-8">
+          <InterviewChatComponent interviewId={analysis.id} />
+        </div>
       </div>
     );
   }
