@@ -62,16 +62,16 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
     processedPath = await compressAudioForScribe(audioFilePath);
     tempFilesToCleanup.push(processedPath);
 
-    // Prepare form data
+    // Prepare form data for ElevenLabs Scribe API
     const formData = new FormData();
     const audioBuffer = fs.readFileSync(processedPath);
     const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
     
-    formData.append('audio', audioBlob, path.basename(processedPath));
-    formData.append('model', 'eleven_multilingual_v2'); // Latest model
-    formData.append('speaker_boost', 'true'); // Enable speaker diarization
-    formData.append('optimize_streaming_latency', '0'); // Best quality
-    formData.append('output_timestamps', 'true'); // Get timestamps
+    formData.append('file', audioBlob, path.basename(processedPath));
+    formData.append('model_id', 'eleven_multilingual_v2');
+    formData.append('diarize', 'true'); // Enable speaker diarization
+    formData.append('tag_audio_events', 'true'); // Tag audio events like laughter
+    formData.append('timestamps_granularity', 'word'); // Word-level timestamps
 
     console.log("Sending audio to ElevenLabs Scribe API...");
     
@@ -204,14 +204,29 @@ export async function transcribeWithFallback(audioFilePath: string): Promise<{ t
       duration: scribeResult.duration
     };
   } catch (scribeError) {
-    console.warn("ElevenLabs Scribe failed, falling back to OpenAI Whisper:", scribeError);
+    console.error("ElevenLabs Scribe failed:", scribeError);
     
-    // Fallback to our existing Whisper implementation
-    const { transcribeAudio } = await import('./whisper');
-    const whisperResult = await transcribeAudio(audioFilePath);
-    return {
-      text: whisperResult.text,
-      duration: 0 // Whisper doesn't return duration in our implementation
-    };
+    // If OpenAI quota is exceeded, return a helpful error message
+    const errorMessage = scribeError instanceof Error ? scribeError.message : "Unknown error";
+    if (errorMessage.includes('quota') || errorMessage.includes('429')) {
+      throw new Error("Both ElevenLabs Scribe and OpenAI Whisper are currently unavailable. Please check your API keys and quotas.");
+    }
+    
+    // Try fallback to our existing Whisper implementation
+    try {
+      console.warn("Attempting fallback to OpenAI Whisper...");
+      const { transcribeAudio } = await import('./whisper');
+      const whisperResult = await transcribeAudio(audioFilePath);
+      return {
+        text: whisperResult.text,
+        duration: 0 // Whisper doesn't return duration in our implementation
+      };
+    } catch (whisperError) {
+      const whisperMsg = whisperError instanceof Error ? whisperError.message : "Unknown error";
+      if (whisperMsg.includes('quota') || whisperMsg.includes('429')) {
+        throw new Error("OpenAI API quota exceeded. The ElevenLabs Scribe service also failed. Please check your OpenAI billing or wait for quota reset.");
+      }
+      throw new Error(`Both transcription services failed. ElevenLabs: ${errorMessage}, Whisper: ${whisperMsg}`);
+    }
   }
 }
