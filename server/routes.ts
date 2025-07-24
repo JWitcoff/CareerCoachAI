@@ -168,14 +168,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const jobDescription = await fetchJobDescriptionFromUrl(url);
       
-      res.json({ jobDescription });
+      res.json({ 
+        jobDescription,
+        success: true,
+        extractedLength: jobDescription.length
+      });
     } catch (error) {
       console.error("URL fetch error:", error);
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid URL provided" });
       } else {
+        const errorMessage = error instanceof Error ? error.message : "Failed to fetch job description from URL";
+        
+        // Provide helpful error messages based on error type
+        let userMessage = errorMessage;
+        if (errorMessage.includes('404')) {
+          userMessage = 'Job posting not found. Please check the URL and try again.';
+        } else if (errorMessage.includes('403')) {
+          userMessage = 'Access denied. The website may be blocking automated requests.';
+        } else if (errorMessage.includes('Insufficient content')) {
+          userMessage = 'Could not extract job description from this page. Try copying the text directly instead.';
+        }
+        
         res.status(500).json({ 
-          message: error instanceof Error ? error.message : "Failed to fetch job description from URL"
+          message: userMessage,
+          success: false,
+          originalError: errorMessage
         });
       }
     }
