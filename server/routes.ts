@@ -213,6 +213,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioPath = req.file.path;
       const fileName = req.file.filename;
 
+      console.error("=== ROUTE DEBUG: Starting interview analysis ===");
+      console.error(`Audio file path: ${audioPath}`);
+
       // Transcribe audio using ElevenLabs Scribe (with Whisper fallback)
       const { text: transcript } = await transcribeWithFallback(audioPath);
       

@@ -1,9 +1,8 @@
 import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
-import FormData from 'form-data';
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_b58d7504529734b1e620eaabc097240e7edf441ae66af1be';
 const SCRIBE_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
 export interface ScribeTranscriptionResult {
@@ -63,17 +62,28 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
     processedPath = await compressAudioForScribe(audioFilePath);
     tempFilesToCleanup.push(processedPath);
 
-    // Prepare form data for ElevenLabs Scribe API using Node.js form-data
-    const formData = new FormData();
+    // Prepare proper multipart form data for ElevenLabs Scribe API
+    console.log("Creating multipart form data for ElevenLabs Scribe...");
+    const audioBuffer = fs.readFileSync(processedPath);
+    const boundary = '----formdata-node-' + Math.random().toString(36);
     
-    formData.append('file', fs.createReadStream(processedPath), {
-      filename: path.basename(processedPath),
-      contentType: 'audio/mpeg'
-    });
-    formData.append('model_id', 'scribe_v1');
-    formData.append('diarize', 'true'); // Enable speaker diarization
-    formData.append('tag_audio_events', 'true'); // Tag audio events like laughter
-    formData.append('timestamps_granularity', 'word'); // Word-level timestamps
+    let formBody = `--${boundary}\r\n`;
+    formBody += `Content-Disposition: form-data; name="file"; filename="${path.basename(processedPath)}"\r\n`;
+    formBody += `Content-Type: audio/mpeg\r\n\r\n`;
+    
+    const formData = Buffer.concat([
+      Buffer.from(formBody, 'utf8'),
+      audioBuffer,
+      Buffer.from(`\r\n--${boundary}\r\n`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="model_id"\r\n\r\nscribe_v1\r\n`, 'utf8'),
+      Buffer.from(`--${boundary}\r\n`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="diarize"\r\n\r\ntrue\r\n`, 'utf8'),
+      Buffer.from(`--${boundary}\r\n`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="tag_audio_events"\r\n\r\ntrue\r\n`, 'utf8'),
+      Buffer.from(`--${boundary}\r\n`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="timestamps_granularity"\r\n\r\nword\r\n`, 'utf8'),
+      Buffer.from(`--${boundary}--\r\n`, 'utf8')
+    ]);
 
     console.log("Sending audio to ElevenLabs Scribe API...");
     
@@ -81,9 +91,10 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
-        ...formData.getHeaders(), // This sets the correct Content-Type boundary
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': formData.length.toString(),
       },
-      body: formData as any, // Node.js FormData is compatible but types differ
+      body: formData,
     });
 
     if (!response.ok) {
@@ -209,10 +220,16 @@ export function formatScribeTranscript(result: ScribeTranscriptionResult): strin
 
 // Fallback to OpenAI Whisper if ElevenLabs fails
 export async function transcribeWithFallback(audioFilePath: string): Promise<{ text: string; duration: number }> {
+  // Log that we're starting the fallback process
+  console.error("=== Starting transcribeWithFallback process ===");
+  console.error(`Processing audio file: ${audioFilePath}`);
+  console.error(`ElevenLabs API key available: ${!!ELEVENLABS_API_KEY}`);
+  
   try {
     // Try ElevenLabs Scribe first
-    console.log("Attempting transcription with ElevenLabs Scribe...");
+    console.error("Attempting transcription with ElevenLabs Scribe...");
     const scribeResult = await transcribeWithElevenLabsScribe(audioFilePath);
+    console.error("ElevenLabs Scribe completed successfully!");
     const formattedText = formatScribeTranscript(scribeResult);
     
     return {
