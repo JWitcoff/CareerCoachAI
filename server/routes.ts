@@ -229,7 +229,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Analyze the transcript using GPT-4o
+      console.log(`Transcript successfully generated: ${transcript.length} characters`);
+      
+      // Analyze the transcript using optimized token system
       const analysisResult = await analyzeInterviewTranscript(transcript);
 
       // Store the analysis in database

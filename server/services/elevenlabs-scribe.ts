@@ -130,11 +130,18 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
 }
 
 function processScribeResponse(scribeResult: any): ScribeTranscriptionResult {
-  console.log("Processing ElevenLabs Scribe response:", JSON.stringify(scribeResult, null, 2));
+  console.log("ElevenLabs Scribe: Processing response");
+  console.log(`ElevenLabs Scribe: Text length: ${scribeResult.text ? scribeResult.text.length : 0}`);
+  console.log(`ElevenLabs Scribe: Words array length: ${scribeResult.words ? scribeResult.words.length : 0}`);
   
   // Process ElevenLabs Scribe response format
   const text = scribeResult.text || '';
   const duration = 0; // ElevenLabs doesn't provide duration in response
+  
+  if (!text || text.trim().length === 0) {
+    console.error("ElevenLabs Scribe: No text content in response!");
+    console.error("Full response:", JSON.stringify(scribeResult, null, 2));
+  }
   
   let speakers: ScribeTranscriptionResult['speakers'];
   
@@ -170,7 +177,16 @@ function processScribeResponse(scribeResult: any): ScribeTranscriptionResult {
 
 // Format transcript with speaker diarization from ElevenLabs
 export function formatScribeTranscript(result: ScribeTranscriptionResult): string {
-  if (!result.speakers || result.speakers.length === 0) {
+  // Always return the raw text if we have it, regardless of speaker detection
+  if (!result.text || result.text.trim().length === 0) {
+    console.error("ElevenLabs Scribe: No transcript text found in result");
+    return "Transcription failed - no text content available";
+  }
+
+  // If we don't have proper speaker segments, just return the raw text
+  if (!result.speakers || result.speakers.length === 0 || 
+      result.speakers.every(speaker => speaker.segments.length === 0)) {
+    console.log("ElevenLabs Scribe: No speaker segments found, returning raw transcript");
     return result.text;
   }
 
@@ -205,15 +221,21 @@ export function formatScribeTranscript(result: ScribeTranscriptionResult): strin
   // Sort by start time
   allSegments.sort((a, b) => a.start - b.start);
 
-  // Format transcript
-  let currentSpeaker = '';
-  allSegments.forEach(segment => {
-    if (currentSpeaker !== segment.speakerName) {
-      currentSpeaker = segment.speakerName;
-      formattedTranscript += `\n${currentSpeaker}: `;
-    }
-    formattedTranscript += segment.text + ' ';
-  });
+  // If no segments were found but we have raw text, append the raw text
+  if (allSegments.length === 0) {
+    console.log("ElevenLabs Scribe: No segments found, appending raw text");
+    formattedTranscript += result.text;
+  } else {
+    // Format transcript with speakers
+    let currentSpeaker = '';
+    allSegments.forEach(segment => {
+      if (currentSpeaker !== segment.speakerName) {
+        currentSpeaker = segment.speakerName;
+        formattedTranscript += `\n${currentSpeaker}: `;
+      }
+      formattedTranscript += segment.text + ' ';
+    });
+  }
 
   return formattedTranscript.trim();
 }
