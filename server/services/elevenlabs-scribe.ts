@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_b58d7504529734b1e620eaabc097240e7edf441ae66af1be';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const SCRIBE_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
 export interface ScribeTranscriptionResult {
