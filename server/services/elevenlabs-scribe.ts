@@ -68,7 +68,7 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
     const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
     
     formData.append('file', audioBlob, path.basename(processedPath));
-    formData.append('model_id', 'eleven_multilingual_v2');
+    formData.append('model_id', 'scribe_v1');
     formData.append('diarize', 'true'); // Enable speaker diarization
     formData.append('tag_audio_events', 'true'); // Tag audio events like laughter
     formData.append('timestamps_granularity', 'word'); // Word-level timestamps
@@ -112,26 +112,35 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
 }
 
 function processScribeResponse(scribeResult: any): ScribeTranscriptionResult {
+  console.log("Processing ElevenLabs Scribe response:", JSON.stringify(scribeResult, null, 2));
+  
   // Process ElevenLabs Scribe response format
-  const text = scribeResult.text || scribeResult.transcript || '';
-  const duration = scribeResult.duration || 0;
+  const text = scribeResult.text || '';
+  const duration = 0; // ElevenLabs doesn't provide duration in response
   
   let speakers: ScribeTranscriptionResult['speakers'];
   
-  // If speaker diarization is available
-  if (scribeResult.speakers && Array.isArray(scribeResult.speakers)) {
-    speakers = scribeResult.speakers.map((speaker: any, index: number) => ({
-      id: speaker.id || `speaker_${index + 1}`,
-      name: speaker.name || `Speaker ${index + 1}`,
-      segments: speaker.segments || []
-    }));
-  } else if (scribeResult.segments && Array.isArray(scribeResult.segments)) {
-    // If we have segments but not speaker info, create basic speaker structure
-    speakers = [{
-      id: 'speaker_1',
-      name: 'Speaker 1',
-      segments: scribeResult.segments
-    }];
+  // Check if ElevenLabs provided speaker diarization in words array
+  if (scribeResult.words && Array.isArray(scribeResult.words)) {
+    const speakerMap = new Map<string, any>();
+    
+    // Group words by speaker
+    scribeResult.words.forEach((word: any) => {
+      if (word.speaker_id || word.speaker) {
+        const speakerId = word.speaker_id || word.speaker;
+        if (!speakerMap.has(speakerId)) {
+          speakerMap.set(speakerId, {
+            id: speakerId,
+            name: `Speaker ${speakerMap.size + 1}`,
+            segments: []
+          });
+        }
+      }
+    });
+    
+    if (speakerMap.size > 0) {
+      speakers = Array.from(speakerMap.values());
+    }
   }
 
   return {
