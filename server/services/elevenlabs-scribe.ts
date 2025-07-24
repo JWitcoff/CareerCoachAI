@@ -19,6 +19,13 @@ export interface ScribeTranscriptionResult {
   }>;
 }
 
+export interface TranscriptionSegment {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
 async function compressAudioForScribe(inputPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(path.dirname(inputPath), `scribe_compressed_${Date.now()}.mp3`);
@@ -201,6 +208,10 @@ export async function transcribeWithFallback(audioFilePath: string): Promise<{ t
     
     // Fallback to our existing Whisper implementation
     const { transcribeAudio } = await import('./whisper');
-    return await transcribeAudio(audioFilePath);
+    const whisperResult = await transcribeAudio(audioFilePath);
+    return {
+      text: whisperResult.text,
+      duration: 0 // Whisper doesn't return duration in our implementation
+    };
   }
 }
