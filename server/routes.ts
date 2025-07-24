@@ -213,8 +213,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioPath = req.file.path;
       const fileName = req.file.filename;
 
-      console.error("=== ROUTE DEBUG: Starting interview analysis ===");
-      console.error(`Audio file path: ${audioPath}`);
+      console.log("=== ROUTE DEBUG: Starting interview analysis ===");
+      console.log(`Audio file path: ${audioPath}`);
+      console.log(`Token optimization enabled: ${process.env.ENABLE_FULL_ANALYSIS !== 'true'}`);
+      console.log(`Economy model enabled: ${process.env.USE_ECONOMY_MODEL !== 'false'}`);
 
       // Transcribe audio using ElevenLabs Scribe (with Whisper fallback)
       const { text: transcript } = await transcribeWithFallback(audioPath);
@@ -356,6 +358,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Failed to fetch interview analyses:", error);
       res.status(500).json({ message: "Failed to fetch interview analyses" });
     }
+  });
+
+  // Configuration endpoint for token optimization
+  app.get("/api/config", (req, res) => {
+    res.json({
+      enableFullAnalysis: process.env.ENABLE_FULL_ANALYSIS === 'true',
+      useEconomyModel: process.env.USE_ECONOMY_MODEL !== 'false',
+      maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || '3000'),
+      tokenOptimizationActive: process.env.ENABLE_FULL_ANALYSIS !== 'true'
+    });
   });
 
   // System status endpoint

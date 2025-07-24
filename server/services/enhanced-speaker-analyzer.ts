@@ -49,12 +49,26 @@ async function analyzeSpeakerCharacteristics(transcript: string): Promise<{
   speakers: SpeakerInfo[];
   summary: string;
 }> {
+  console.log("=== OPTIMIZED SPEAKER ANALYSIS ===");
+  console.log(`Transcript length: ${transcript.length} characters`);
+  
+  // Truncate transcript to save tokens - focus on first 3000 characters for speaker identification
+  const maxChars = 3000;
+  const truncatedTranscript = transcript.length > maxChars 
+    ? transcript.substring(0, maxChars) + "\n\n[... transcript truncated to save tokens ...]"
+    : transcript;
+  
+  console.log(`Using truncated transcript: ${truncatedTranscript.length} characters`);
+  
+  const model = process.env.USE_ECONOMY_MODEL !== 'false' ? "gpt-4o-mini" : "gpt-4o";
+  console.log(`Using model: ${model}`);
+  
   const response = await openai.chat.completions.create({
-    model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+    model,
     messages: [
       {
         role: "system",
-        content: `You are an expert in conversation analysis and speaker identification. Analyze this interview transcript to identify distinct speakers based on:
+        content: `You are an expert in conversation analysis and speaker identification. Analyze this interview transcript excerpt to identify distinct speakers based on:
 
 1. **Speech patterns and style** (formal vs casual, question types, response patterns)
 2. **Content roles** (interviewer asking questions vs interviewee answering)
@@ -62,13 +76,13 @@ async function analyzeSpeakerCharacteristics(transcript: string): Promise<{
 4. **Gender indicators** (linguistic patterns, names mentioned, pronoun usage)
 5. **Conversational dynamics** (who leads, who responds, power dynamics)
 
-Provide detailed analysis in JSON format.`
+Note: This is a truncated excerpt for token efficiency. Provide detailed analysis in JSON format.`
       },
       {
         role: "user",
-        content: `Analyze this interview transcript and identify the speakers:
+        content: `Analyze this interview transcript excerpt and identify the speakers:
 
-${transcript}
+${truncatedTranscript}
 
 Respond with JSON in this exact format:
 {
@@ -94,8 +108,10 @@ Respond with JSON in this exact format:
     ],
     response_format: { type: "json_object" },
     temperature: 0.3, // Lower temperature for more consistent analysis
-    max_tokens: 1000,
+    max_tokens: 400, // Limit output tokens
   });
+  
+  console.log(`Speaker analysis completed using ${model}`);
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
   
