@@ -6,7 +6,7 @@ export interface TokenConfig {
 }
 
 export const getTokenConfig = (): TokenConfig => ({
-  enableFullAnalysis: process.env.ENABLE_FULL_ANALYSIS === 'true',
+  enableFullAnalysis: true, // OpenAI quota restored - enable real AI analysis
   useEconomyModel: process.env.USE_ECONOMY_MODEL !== 'false', // Default to economy mode
   maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || '3000')
 });
