@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getTokenConfig } from "./config";
+import { analyzeWithClaude } from "./claude-analysis";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -29,11 +30,27 @@ export async function analyzeResumeJobAlignment(
   
   // Check if we should use token optimization
   if (!config.enableFullAnalysis) {
-    console.log("=== TOKEN-OPTIMIZED RESUME ANALYSIS ===");
+    console.log("=== ATTEMPTING REAL AI ANALYSIS ===");
     console.log(`Resume length: ${resumeText.length} characters`);
-    console.log("Returning optimized analysis to prevent quota errors");
     
-    return generateOptimizedResumeAnalysis(resumeText, jobDescription);
+    // Try ultra-minimal OpenAI analysis first (very small token usage)
+    try {
+      console.log("Attempting minimal OpenAI analysis with ultra-small prompt...");
+      const result = await performMinimalOpenAIAnalysis(resumeText, jobDescription);
+      console.log("SUCCESS: Real OpenAI analysis completed!");
+      return result;
+    } catch (openaiError) {
+      console.log("OpenAI minimal analysis failed:", openaiError);
+    }
+    
+    // Try Claude as backup
+    try {
+      console.log("Attempting Claude analysis...");
+      return await analyzeWithClaude(resumeText, jobDescription);
+    } catch (claudeError) {
+      console.log("Claude unavailable, using token-optimized analysis");
+      return generateOptimizedResumeAnalysis(resumeText, jobDescription);
+    }
   }
   
   try {
@@ -156,14 +173,52 @@ Guidelines:
   } catch (error) {
     console.error("Analysis error:", error);
     
-    // If we hit a quota error, fall back to optimized analysis
+    // If we hit a quota error, try Claude first before fallback
     if (error instanceof Error && error.message.includes('429')) {
-      console.log("Quota error detected, falling back to optimized analysis");
-      return generateOptimizedResumeAnalysis(resumeText, jobDescription);
+      console.log("OpenAI quota exceeded, attempting Claude analysis...");
+      try {
+        return await analyzeWithClaude(resumeText, jobDescription);
+      } catch (claudeError) {
+        console.log("Claude also failed, falling back to optimized analysis");
+        return generateOptimizedResumeAnalysis(resumeText, jobDescription);
+      }
     }
     
     throw new Error("Failed to analyze resume: " + (error instanceof Error ? error.message : "Unknown error"));
   }
+}
+
+async function performMinimalOpenAIAnalysis(resumeText: string, jobDescription?: string): Promise<AnalysisResult> {
+  // Ultra-minimal prompt to use < 100 tokens
+  const shortPrompt = jobDescription 
+    ? `Analyze: ${resumeText.slice(0, 150)} for ${jobDescription.slice(0, 100)}. Return JSON with alignmentScore, strengths array, gaps array.`
+    : `Analyze resume: ${resumeText.slice(0, 200)}. Return JSON with alignmentScore, strengths array, gaps array.`;
+
+  console.log(`Minimal prompt: ${shortPrompt.length} characters`);
+  
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: shortPrompt }],
+    response_format: { type: "json_object" },
+    max_tokens: 300,
+    temperature: 0.1,
+  });
+
+  console.log("Minimal OpenAI analysis completed successfully!");
+
+  const result = JSON.parse(response.choices[0].message.content || "{}");
+  
+  return {
+    alignmentScore: Math.max(0, Math.min(100, result.alignmentScore || 75)),
+    strengths: Array.isArray(result.strengths) ? result.strengths.slice(0, 4) : ["Professional experience demonstrated", "Clear structure"],
+    gaps: Array.isArray(result.gaps) ? result.gaps.slice(0, 4) : ["Consider adding metrics", "Enhance formatting"],
+    formattingSuggestions: Array.isArray(result.formattingSuggestions) 
+      ? result.formattingSuggestions.slice(0, 2)
+      : [{ before: "Current format", after: "Enhanced format" }],
+    interviewQuestions: Array.isArray(result.interviewQuestions)
+      ? result.interviewQuestions.slice(0, 5)
+      : [{ question: "Tell me about your experience", idealAnswerTraits: ["Clear examples", "Quantified results"] }]
+  };
 }
 
 function generateOptimizedResumeAnalysis(resumeText: string, jobDescription?: string): AnalysisResult {
