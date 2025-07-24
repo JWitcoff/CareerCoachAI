@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
+import FormData from 'form-data';
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const SCRIBE_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
@@ -62,12 +63,13 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
     processedPath = await compressAudioForScribe(audioFilePath);
     tempFilesToCleanup.push(processedPath);
 
-    // Prepare form data for ElevenLabs Scribe API
+    // Prepare form data for ElevenLabs Scribe API using Node.js form-data
     const formData = new FormData();
-    const audioBuffer = fs.readFileSync(processedPath);
-    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
     
-    formData.append('file', audioBlob, path.basename(processedPath));
+    formData.append('file', fs.createReadStream(processedPath), {
+      filename: path.basename(processedPath),
+      contentType: 'audio/mpeg'
+    });
     formData.append('model_id', 'scribe_v1');
     formData.append('diarize', 'true'); // Enable speaker diarization
     formData.append('tag_audio_events', 'true'); // Tag audio events like laughter
@@ -79,8 +81,9 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
+        ...formData.getHeaders(), // This sets the correct Content-Type boundary
       },
-      body: formData,
+      body: formData as any, // Node.js FormData is compatible but types differ
     });
 
     if (!response.ok) {
@@ -96,6 +99,10 @@ export async function transcribeWithElevenLabsScribe(audioFilePath: string): Pro
 
   } catch (error) {
     console.error("ElevenLabs Scribe transcription error:", error);
+    // Log the full error details for debugging
+    if (error instanceof Error && error.message) {
+      console.error("Full error details:", error.message);
+    }
     throw new Error("Failed to transcribe with ElevenLabs Scribe: " + (error instanceof Error ? error.message : "Unknown error"));
   } finally {
     // Cleanup temporary files
