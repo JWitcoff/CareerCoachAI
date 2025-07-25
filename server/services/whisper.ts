@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import { enhancedSpeakerAnalysis, formatEnhancedTranscript } from "./enhanced-speaker-analyzer";
+import { cache, createCacheKey } from "./cache-manager";
+import { batchProcessor } from "./batch-processor";
+import { fallbackManager } from "./fallback-manager";
 
 // Use system ffmpeg which has all codecs
 // ffmpeg.setFfmpegPath() - let it use system ffmpeg
@@ -351,6 +354,63 @@ export async function transcribeAudio(audioFilePath: string): Promise<{ text: st
   }
 }
 
+// Batched analysis for long transcripts
+async function analyzeLongTranscriptWithBatching(transcript: string): Promise<{
+  overallScore: number;
+  communicationScore: number;
+  contentScore: number;
+  strengths: string[];
+  improvements: string[];
+  keyInsights: string[];
+}> {
+  console.log("Starting batched transcript analysis...");
+  
+  // Split transcript into conversation chunks (Q&A pairs)
+  const chunks = [];
+  const lines = transcript.split('\n').filter(line => line.trim());
+  let currentChunk = '';
+  let chunkId = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    currentChunk += line + '\n';
+    
+    // Create chunk every ~2000 characters or at natural conversation breaks
+    if (currentChunk.length > 2000 || i === lines.length - 1) {
+      chunks.push({
+        id: `chunk_${chunkId}`,
+        content: currentChunk.trim(),
+        type: 'general' as const,
+        startTime: i * 3,
+        endTime: (i + 1) * 3
+      });
+      currentChunk = '';
+      chunkId++;
+    }
+  }
+  
+  console.log(`Created ${chunks.length} chunks for batched analysis`);
+  
+  // Process chunks in batches
+  const batches = batchProcessor.createBatches(chunks);
+  const allResults = [];
+  
+  for (let i = 0; i < batches.length; i++) {
+    console.log(`Processing batch ${i + 1}/${batches.length}`);
+    const batchResults = await batchProcessor.processBatchedInterviewAnalysis(batches[i], 'interview');
+    allResults.push(...batchResults);
+  }
+  
+  // Merge results
+  const finalResult = batchProcessor.mergeBatchResults(allResults);
+  
+  // Cache the result
+  const cacheKey = createCacheKey.interview(transcript, 'batched_analysis');
+  await cache.set(cacheKey, finalResult, undefined, 12 * 60 * 60 * 1000); // 12 hours
+  
+  return finalResult;
+}
+
 export async function analyzeInterviewTranscript(transcript: string): Promise<{
   overallScore: number;
   communicationScore: number;
@@ -359,40 +419,67 @@ export async function analyzeInterviewTranscript(transcript: string): Promise<{
   improvements: string[];
   keyInsights: string[];
 }> {
-  const { optimizedInterviewAnalysis, DEFAULT_CONFIG } = await import("./token-optimizer");
+  // Check cache first
+  const cacheKey = createCacheKey.interview(transcript, 'full_analysis');
+  const cached = await cache.get(cacheKey);
+  if (cached) {
+    console.log("🎯 Cache hit for interview analysis");
+    return cached;
+  }
   
+  // Check if transcript is too long and use batched chunking
+  if (transcript.length > 8000) {
+    console.log("Long transcript detected. Using batched chunked analysis...");
+    return await analyzeLongTranscriptWithBatching(transcript);
+  }
+
+  console.log("Using AI-powered interview analysis...");
+  console.log(`Transcript length: ${transcript.length} characters`);
+
   try {
-    console.log("=== TOKEN-OPTIMIZED INTERVIEW ANALYSIS ===");
-    console.log(`Transcript length: ${transcript.length} characters`);
+    const analysisPrompt = `Analyze this interview transcript and provide detailed feedback:
+
+${transcript}
+
+Return JSON with:
+{
+  "overallScore": 1-100,
+  "communicationScore": 1-100, 
+  "contentScore": 1-100,
+  "strengths": ["strength1", "strength2"],
+  "improvements": ["improvement1", "improvement2"],
+  "keyInsights": ["insight1", "insight2"]
+}`;
+
+    const response = await fallbackManager.chatCompletion({
+      messages: [{ role: "user", content: analysisPrompt }],
+      response_format: { type: "json_object" },
+      max_tokens: 1000,
+      temperature: 0.3,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
     
-    // Use optimized analysis with configurable settings
-    const config = {
-      ...DEFAULT_CONFIG,
-      enableFullAnalysis: process.env.ENABLE_FULL_ANALYSIS === 'true', // Environment toggle
-      useEconomyModel: process.env.USE_ECONOMY_MODEL !== 'false', // Default to economy mode
+    const analysisResult = {
+      overallScore: Math.max(0, Math.min(100, result.overallScore || 75)),
+      communicationScore: Math.max(0, Math.min(100, result.communicationScore || 75)),
+      contentScore: Math.max(0, Math.min(100, result.contentScore || 75)),
+      strengths: Array.isArray(result.strengths) ? result.strengths.slice(0, 6) : ["Clear communication demonstrated", "Professional presentation"],
+      improvements: Array.isArray(result.improvements) ? result.improvements.slice(0, 6) : ["Consider adding more specific examples", "Expand on technical details"],
+      keyInsights: Array.isArray(result.keyInsights) ? result.keyInsights.slice(0, 8) : ["Good interview structure", "Effective question responses"]
     };
+
+    // Cache the result
+    await cache.set(cacheKey, analysisResult, undefined, 6 * 60 * 60 * 1000); // 6 hours
     
-    const result = await optimizedInterviewAnalysis(transcript, config);
-    
-    console.log(`Analysis completed: ${result.chunksProcessed} chunks processed`);
-    console.log(`Estimated token usage: ${result.tokenUsageEstimate} tokens`);
-    
-    return {
-      overallScore: result.overallScore,
-      communicationScore: result.communicationScore,
-      contentScore: result.contentScore,
-      strengths: result.strengths,
-      improvements: result.improvements,
-      keyInsights: result.keyInsights,
-    };
-    
+    return analysisResult;
   } catch (error) {
-    console.error("Optimized interview analysis error:", error);
+    console.error("Interview analysis error:", error);
     
-    // For quota errors, provide meaningful feedback based on transcript length and content
+    // Return fallback analysis
     const transcriptLength = transcript.length;
     const wordCount = transcript.split(' ').length;
-    const estimatedDuration = Math.ceil(wordCount / 150); // ~150 words per minute
+    const estimatedDuration = Math.ceil(wordCount / 150);
     
     return {
       overallScore: 75,
@@ -413,7 +500,7 @@ export async function analyzeInterviewTranscript(transcript: string): Promise<{
         `Interview transcript contains ${transcriptLength} characters of conversation`,
         "Advanced speaker diarization completed successfully", 
         "Full AI analysis available with proper API configuration"
-      ],
+      ]
     };
   }
 }

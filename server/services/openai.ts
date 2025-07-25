@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { getTokenConfig } from "./config";
 import { analyzeWithClaude } from "./claude-analysis";
+import { cache, createCacheKey } from "./cache-manager";
+import { fallbackManager } from "./fallback-manager";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -189,6 +191,14 @@ Guidelines:
 }
 
 async function performMinimalOpenAIAnalysis(resumeText: string, jobDescription?: string): Promise<AnalysisResult> {
+  // Check cache first
+  const cacheKey = createCacheKey.resume(resumeText, jobDescription);
+  const cached = await cache.get<AnalysisResult>(cacheKey);
+  if (cached) {
+    console.log("🎯 Cache hit for resume analysis");
+    return cached;
+  }
+
   // Ultra-minimal prompt to use < 100 tokens
   const shortPrompt = jobDescription 
     ? `Analyze: ${resumeText.slice(0, 150)} for ${jobDescription.slice(0, 100)}. Return JSON with alignmentScore, strengths array, gaps array.`
@@ -196,8 +206,7 @@ async function performMinimalOpenAIAnalysis(resumeText: string, jobDescription?:
 
   console.log(`Minimal prompt: ${shortPrompt.length} characters`);
   
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  const response = await fallbackManager.chatCompletion({
     messages: [{ role: "user", content: shortPrompt }],
     response_format: { type: "json_object" },
     max_tokens: 300,
@@ -208,7 +217,7 @@ async function performMinimalOpenAIAnalysis(resumeText: string, jobDescription?:
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
   
-  return {
+  const analysisResult: AnalysisResult = {
     alignmentScore: Math.max(0, Math.min(100, result.alignmentScore || 75)),
     strengths: Array.isArray(result.strengths) ? result.strengths.slice(0, 4) : ["Professional experience demonstrated", "Clear structure"],
     gaps: Array.isArray(result.gaps) ? result.gaps.slice(0, 4) : ["Consider adding metrics", "Enhance formatting"],
@@ -219,6 +228,11 @@ async function performMinimalOpenAIAnalysis(resumeText: string, jobDescription?:
       ? result.interviewQuestions.slice(0, 5)
       : [{ question: "Tell me about your experience", idealAnswerTraits: ["Clear examples", "Quantified results"] }]
   };
+
+  // Cache the result
+  await cache.set(cacheKey, analysisResult, undefined, 24 * 60 * 60 * 1000); // 24 hours
+  
+  return analysisResult;
 }
 
 function generateOptimizedResumeAnalysis(resumeText: string, jobDescription?: string): AnalysisResult {

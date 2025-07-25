@@ -7,6 +7,8 @@ import { fetchJobDescriptionFromUrl } from "./services/scraper";
 import { transcribeAudio, analyzeInterviewTranscript } from "./services/whisper";
 import { transcribeWithFallback } from "./services/elevenlabs-scribe";
 import { generateChatResponse } from "./services/interview-chat";
+import { cache } from "./services/cache-manager";
+import { fallbackManager } from "./services/fallback-manager";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
@@ -365,6 +367,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Get chat history error:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to get chat history"
+      });
+    }
+  });
+
+  // Cache management endpoints
+  app.get("/api/cache/stats", async (req, res) => {
+    try {
+      const stats = await cache.getStats();
+      res.json({
+        success: true,
+        cache: stats,
+        fallback: fallbackManager.getStats()
+      });
+    } catch (error) {
+      console.error("Cache stats error:", error);
+      res.status(500).json({ 
+        message: "Failed to get cache statistics"
+      });
+    }
+  });
+
+  app.delete("/api/cache/clear", async (req, res) => {
+    try {
+      await cache.clear();
+      fallbackManager.resetStats();
+      res.json({
+        success: true,
+        message: "Cache cleared and fallback stats reset"
+      });
+    } catch (error) {
+      console.error("Cache clear error:", error);
+      res.status(500).json({ 
+        message: "Failed to clear cache"
       });
     }
   });
