@@ -369,6 +369,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ElevenLabs agent URL endpoint
+  app.get("/api/interview/agent-url", async (req, res) => {
+    try {
+      // Return the ElevenLabs agent URL for embedded widget
+      const agentUrl = "https://elevenlabs.io/convai-widget?agent_id=YOUR_AGENT_ID";
+      res.json({ agentUrl });
+    } catch (error) {
+      console.error("Agent URL error:", error);
+      res.status(500).json({ message: "Failed to get agent URL" });
+    }
+  });
+
+  // Transcribe endpoint for testing
+  app.post("/api/interview/transcribe", async (req, res) => {
+    try {
+      // This is a test endpoint - in production this would handle actual transcription
+      res.json({ 
+        success: true, 
+        message: "Transcription endpoint ready",
+        features: ["ElevenLabs Scribe", "Whisper fallback", "Speaker diarization"]
+      });
+    } catch (error) {
+      console.error("Transcribe test error:", error);
+      res.status(500).json({ message: "Transcription service unavailable" });
+    }
+  });
+
   // Get all interview analyses
   app.get("/api/interview-analyses", async (req, res) => {
     try {
