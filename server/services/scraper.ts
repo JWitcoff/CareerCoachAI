@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { extractWorkdayJobContent, generateWorkdayInstructions } from './workday-scraper';
 
 export async function fetchJobDescriptionFromUrl(url: string): Promise<string> {
   try {
@@ -136,54 +137,18 @@ export async function fetchJobDescriptionFromUrl(url: string): Promise<string> {
     
     // Special handling for dynamic content sites (Workday, etc.)
     if (allText.length < 500 && html.length > 10000) {
-      console.log("Detected dynamic content loading site - attempting to extract from HTML structure");
+      console.log("Detected dynamic content loading site - attempting enhanced extraction...");
       
-      // Look for JSON data or script content that might contain job info
-      const scripts = $('script').map((i, el) => $(el).html()).get();
-      const dataScripts = scripts.filter(script => 
-        script && (script.includes('jobDescription') || script.includes('description') || script.includes('responsibilities'))
-      );
-      
-      console.log(`Found ${dataScripts.length} scripts with job-related content`);
-      
-      if (dataScripts.length > 0) {
-        // Try to extract job description from script data
-        for (const script of dataScripts) {
-          try {
-            // Look for JSON objects with job description
-            const jsonMatches = script.match(/\{[^{}]*"[^"]*(?:description|responsibilities|qualifications)[^"]*"[^{}]*\}/gi);
-            if (jsonMatches) {
-              console.log(`Found ${jsonMatches.length} potential JSON job descriptions`);
-              
-              for (const match of jsonMatches) {
-                try {
-                  const parsed = JSON.parse(match);
-                  const possibleDesc = Object.values(parsed).find(val => 
-                    typeof val === 'string' && val.length > 200 && 
-                    (val.toLowerCase().includes('responsibilities') || val.toLowerCase().includes('qualifications'))
-                  );
-                  
-                  if (possibleDesc) {
-                    jobDescription = possibleDesc as string;
-                    matchedSelector = 'script-json-extraction';
-                    console.log(`Extracted job description from script JSON, length: ${jobDescription.length}`);
-                    break;
-                  }
-                } catch (e) {
-                  // Continue trying other matches
-                }
-              }
-              if (jobDescription) break;
-            }
-          } catch (e) {
-            // Continue to next script
-          }
-        }
-      }
-      
-      // If still no content, provide specific guidance for dynamic sites
-      if (!jobDescription) {
-        throw new Error('This job posting uses dynamic content loading (like Workday, Greenhouse, etc.) which requires JavaScript to display. The page loaded successfully but the job description is not accessible via web scraping. Please copy the job description text manually from your browser.');
+      // Try Workday-specific extraction methods
+      const workdayContent = await extractWorkdayJobContent(url, html);
+      if (workdayContent) {
+        jobDescription = workdayContent;
+        matchedSelector = 'workday-enhanced-extraction';
+        console.log(`✅ Enhanced extraction successful: ${jobDescription.length} characters`);
+      } else {
+        // Provide helpful user guidance with specific instructions
+        const instructions = generateWorkdayInstructions(url);
+        throw new Error(instructions);
       }
     }
       
