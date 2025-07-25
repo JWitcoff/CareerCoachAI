@@ -204,27 +204,34 @@ export function AnalysisForm({ onAnalysisComplete, isLoading, setIsLoading }: An
                         </div>
                         
                         {inputMode === "url" ? (
-                          <div className="flex space-x-2">
-                            <Input
-                              placeholder="Enter job posting URL..."
-                              disabled={isLoading || isUrlFetching}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleUrlFetch(e.currentTarget.value);
-                                }
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              onClick={(e) => {
-                                const input = e.currentTarget.parentElement?.querySelector('input');
-                                if (input) handleUrlFetch(input.value);
-                              }}
-                              disabled={isLoading || isUrlFetching}
-                            >
-                              {isUrlFetching ? "Fetching..." : "Fetch"}
-                            </Button>
+                          <div className="space-y-3">
+                            <div className="flex space-x-2">
+                              <Input
+                                placeholder="Enter job posting URL..."
+                                disabled={isLoading || isUrlFetching}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleUrlFetch(e.currentTarget.value);
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                onClick={(e) => {
+                                  const input = e.currentTarget.parentElement?.querySelector('input');
+                                  if (input) handleUrlFetch(input.value);
+                                }}
+                                disabled={isLoading || isUrlFetching}
+                              >
+                                {isUrlFetching ? "Fetching..." : "Fetch"}
+                              </Button>
+                            </div>
+                            <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded border">
+                              <strong>Works with:</strong> LinkedIn Jobs, Indeed, AngelList, company career pages
+                              <br />
+                              <strong>Note:</strong> Some job boards (like Workday, Greenhouse) use dynamic loading. If fetching fails, copy the job description text manually.
+                            </div>
                           </div>
                         ) : null}
                         
