@@ -121,6 +121,11 @@ postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-0-region.pooler.supabase.com:5432/
 - ✅ **Implemented batching for transcript chunks with economy model usage**
 - ✅ **Added automatic retry logic with fallback to gpt-3.5-turbo on quota errors**
 - ✅ **Created cache and fallback management API endpoints**
+- ✅ **ENHANCED JOB URL SCRAPER FUNCTIONALITY (July 25, 2025)**
+- ✅ **Added 30+ site-specific selectors for major job boards**
+- ✅ **Implemented keyword-based content extraction fallback**
+- ✅ **Enhanced error handling with user-friendly messages**
+- ✅ **Added debugging endpoints for testing URL scraping**
 
 ### Previous Changes (January 2025)
 - ✅ Added Supabase PostgreSQL database integration

@@ -9,6 +9,7 @@ import { transcribeWithFallback } from "./services/elevenlabs-scribe";
 import { generateChatResponse } from "./services/interview-chat";
 import { cache } from "./services/cache-manager";
 import { fallbackManager } from "./services/fallback-manager";
+import { testSingleUrl, testJobScraper } from "./services/url-tester";
 import multer from "multer";
 import { z } from "zod";
 import type { Request } from "express";
@@ -400,6 +401,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Cache clear error:", error);
       res.status(500).json({ 
         message: "Failed to clear cache"
+      });
+    }
+  });
+
+  // URL scraper testing endpoints
+  app.post("/api/test-url", async (req, res) => {
+    try {
+      const { url } = z.object({ url: z.string().url() }).parse(req.body);
+      const result = await testSingleUrl(url);
+      res.json(result);
+    } catch (error) {
+      console.error("URL test error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to test URL"
+      });
+    }
+  });
+
+  app.get("/api/test-scraper", async (req, res) => {
+    try {
+      const results = await testJobScraper();
+      res.json({
+        success: true,
+        results,
+        summary: {
+          total: results.length,
+          successful: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length
+        }
+      });
+    } catch (error) {
+      console.error("Scraper test error:", error);
+      res.status(500).json({ 
+        message: "Failed to test scraper"
       });
     }
   });
